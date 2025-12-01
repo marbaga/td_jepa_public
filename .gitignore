@@ -1,0 +1,8 @@
+*.pyc
+*.csv
+*.jpg
+*.png
+.vscode/
+wandb/
+*.DS_Store
+.venv/

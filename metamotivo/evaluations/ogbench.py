@@ -1,0 +1,121 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+#
+# This source code is licensed under the CC BY-NC 4.0 license found in the
+# LICENSE file in the root directory of this source tree.
+
+import typing as tp
+
+import numpy as np
+import pydantic
+import torch
+import tqdm
+from humenv.bench.gym_utils.rollouts import rollout
+from torch.utils._pytree import tree_map
+
+from metamotivo.envs.ogbench import OGBenchEnvConfig
+from metamotivo.evaluations.base import BaseEvalConfig, extract_model
+from metamotivo.nn_models import eval_mode
+from metamotivo.wrappers.humenvbench import BaseHumEnvBenchWrapper
+
+
+class OGBenchRewardEvalConfig(BaseEvalConfig):
+    name: tp.Literal["ogbench_reward_eval"] = "ogbench_reward_eval"
+    name_in_logs: str = "reward"
+    env: OGBenchEnvConfig
+
+    tasks: list[str] = pydantic.Field(default_factory=lambda: [])
+    num_episodes: int = 100
+    num_envs: int = 1
+
+    num_inference_samples: int = 50_000
+    shift_reward: float = 0.0
+    disable_tqdm: bool = True
+
+    def build(self):
+        return OGBenchRewardEvaluation(self)
+
+    @classmethod
+    def requires_replay_buffer(self):
+        return True
+
+
+class OGBenchRewardEvaluation:
+    def __init__(self, config: OGBenchRewardEvalConfig):
+        self.cfg = config
+
+    # TODO: the logic here is almost entirely shared with DMC
+    def run(self, *, timestep, agent_or_model, replay_buffer, logger, **kwargs):
+        wandb_dict = {}
+        eval_metrics = {}
+        model = extract_model(agent_or_model)
+        model = BaseHumEnvBenchWrapper(model=model, numpy_output=True)
+
+        pbar = tqdm.tqdm(self.cfg.tasks, leave=False, disable=self.cfg.disable_tqdm)
+        for task in pbar:
+            pbar.set_description(f"task {task}")
+            eval_env, _ = self.cfg.env.model_copy(update={"task": task}).build(self.cfg.num_envs)
+            pbar.set_description(f"task {task} (inference)")
+            ctx, relabel_metrics = self._reward_inference(
+                env=eval_env, agent_or_model=agent_or_model, task=task, replay_buffer=replay_buffer
+            )
+            print(relabel_metrics)
+            pbar.set_description(f"task {task} (rollout)")
+            ctx = [None] * self.cfg.num_envs if ctx is None else ctx.repeat(self.cfg.num_envs, 1)
+            with torch.no_grad(), eval_mode(model):
+                st, eps = rollout(
+                    eval_env,
+                    agent=model,
+                    num_episodes=self.cfg.num_episodes,
+                    ctx=ctx,
+                )  # return statistics and episodes
+            st["success"] = [e["info"]["success"].any() for e in eps]
+            print(task, {k: np.mean(v) for k, v in st.items()})
+            eval_metrics[task] = st
+            wandb_dict[f"{task}/reward"] = np.mean(st["reward"])
+            wandb_dict[f"{task}/success"] = np.mean(st["success"])
+            wandb_dict[f"{task}/reward#std"] = np.std(st["reward"])
+            for k, v in relabel_metrics.items():
+                wandb_dict[f"{task}/{k}"] = v
+            eval_env.close()
+            del eval_env
+
+        rewards = np.concat([el["reward"] for el in eval_metrics.values()])
+        wandb_dict["eval/reward"] = np.mean(rewards)
+        wandb_dict["eval/reward#std"] = np.std(rewards)
+        successes = np.concat([el["success"] for el in eval_metrics.values()])
+        wandb_dict["eval/success"] = np.mean(successes)
+
+        # log reward results
+        if logger is not None:
+            for k, v in eval_metrics.items():
+                # task and timestamp needs to be repeated length of metrics times so the logger accepts it
+                random_key = list(v.keys())[0]
+                n = len(v[random_key])
+                v["task"] = [k] * n
+                v["timestep"] = [timestep] * n
+                logger.log(v)
+
+        return eval_metrics, wandb_dict
+
+    def _reward_inference(self, env, agent_or_model, task, replay_buffer) -> torch.Tensor:
+        model = extract_model(agent_or_model)
+        # TODO other solutions? Do we want all models to implement reward_inference?
+        if not hasattr(model, "reward_inference"):
+            return torch.zeros((1, 1)), {}
+        num_samples = self.cfg.num_inference_samples
+        batch = replay_buffer["train"].sample(num_samples)
+        rewards = self.cfg.env.get_relabel_fn(task)(batch["next"]["physics"].cpu().numpy(), batch["action"].cpu().numpy())
+        rewards += self.cfg.shift_reward
+
+        non_zero_rewards = np.count_nonzero(rewards.ravel())
+        relabel_metrics = {
+            "relabel_reward#mean": np.mean(rewards),
+            "relabel_reward#nonzero": non_zero_rewards,
+            "relabel_reward#zero": rewards.size - non_zero_rewards,
+            "relabel_reward#num_samples": rewards.size,
+        }
+        z = agent_or_model._model.reward_inference(
+            next_obs=tree_map(lambda x: x.to(agent_or_model.device), batch["next"]["observation"]),
+            reward=torch.tensor(rewards, dtype=torch.float32, device=agent_or_model.device),
+        )
+        return z.reshape(1, -1), relabel_metrics

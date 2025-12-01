@@ -1,0 +1,43 @@
+[project]
+name = "metamotivo"
+dynamic = ["version"]
+description = "TD-JEPA"
+readme = "README.md"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+    "exca>=0.2.5",
+    "safetensors>=0.4.4",
+    "torch>=2.3",
+    "ogbench>=1.1.2",
+    "tqdm",
+    "h5py>=3.11.0",
+    "pandas>=2.2.3",
+]
+
+[project.urls]
+Homepage = "https://arxiv.org/abs/2510.00739"
+
+[tool.setuptools.dynamic]
+version = {attr = "metamotivo.__version__"}
+
+[tool.setuptools.packages.find]
+include = ["metamotivo*"]
+
+[tool.uv]
+dev-dependencies = [
+    "ruff==0.9.6",
+    "rich",
+    "wandb>=0.19.1",
+    "tyro>=0.9.3",
+]
+
+[tool.ruff]
+line-length = 140
+extend-exclude = ["wandb"]
+
+[tool.ruff.lint]
+# E402: imports at the top of the files (but lazy import is useful to reduce memory use)
+# E731: Do not assign lambdas (but these are handy for functional programming, and used in tests to change logic)
+ignore = ["E402", "E731"]
+# Add import sorting to the linting
+extend-select = ["I"] # This is disabled as currently it causes different results on github and locally
