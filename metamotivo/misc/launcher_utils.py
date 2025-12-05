@@ -3,75 +3,232 @@
 # This source code is licensed under the CC BY-NC 4.0 license found in the
 # LICENSE file in the root directory of this source tree.
 
+from copy import deepcopy
 import itertools
-import typing as tp
+import pathlib
+import os
 
-import rich
-from exca.confdict import ConfDict
+from entry_points.train_offline import TrainConfig
 
-from entry_points.train_offline import TrainConfig as OfflineTrainConfig
-from metamotivo.base import BaseConfig
+
+def flatten(nested_dict: dict, parent_key: str = "", sep: str = ".") -> dict:
+    """
+    Flatten a nested dictionary.
+    """
+    items = []
+    for k, v in nested_dict.items():
+        new_key = f"{parent_key}{sep}{k}" if parent_key else k
+        if isinstance(v, dict):
+            items.extend(flatten(v, new_key, sep=sep).items())
+        else:
+            items.append((new_key, v))
+    return dict(items)
+
+
+def unflatten(flat_dict: dict, sep: str = ".") -> dict:
+    """
+    Unflatten a dictionary.
+    """
+    unflat_dict = {}
+    for k, v in flat_dict.items():
+        keys = k.split(sep)
+        d = unflat_dict
+        for key in keys[:-1]:
+            if key not in d:
+                d[key] = {}
+            d = d[key]
+        d[keys[-1]] = v
+    return unflat_dict
 
 
 def all_combinations_of_nested_dicts_for_sweep(nested_dict):
     """
-    For a nested dict, with lists, return unique dictionaries for all combinations
-
-    This is done by flattening the dict, doing all combinations and returning back
+    Flatten the dict, get all combinations of the values and return a list of dicts with the combinations.
     """
-    # NOTE that this needs more careful thinking if you have "." in the name etc
-    # Use confdict to flatten everything
-    flat_dict = ConfDict(nested_dict).flat()
+    flat_dict = flatten(nested_dict)
     keys = list(flat_dict.keys())
-    return_list = []
-    for vals in itertools.product(*[flat_dict[k] for k in keys]):
-        sweep_dict = dict(zip(keys, vals))
-        # Use ConfDict to get the nested dict back
-        return_list.append(ConfDict(sweep_dict))
-    return return_list
+    return [dict(zip(keys, vals)) for vals in itertools.product(*[flat_dict[k] for k in keys])]
+
+
+def launch_locally(
+    base_config: dict,
+    trials: list[dict],
+    first_only: bool = False,
+    dry: bool = False,
+):
+    base_config = flatten(base_config)
+    for trial in trials:
+        config = deepcopy(base_config)
+        config.update(flatten(trial))
+        config = unflatten(config)
+        if dry:
+            print(config)
+        else:
+            TrainConfig(**config).build().train()
+        if first_only:
+            break
+
+
+def slurm_entry_point(config_path: str):
+    """
+    Entry point for slurm jobs.
+    """
+    with open(config_path) as f:
+        cfg = TrainConfig.model_validate_json(f.read())
+    cfg.build().train()
+
+
+def launch_with_sbatch(
+    base_config: dict,
+    trials: list[dict],
+):
+
+    import shutil
+    import stat
+    from subprocess import PIPE, run, TimeoutExpired
+
+    JOB_PREFIX =  """#!/bin/bash
+#SBATCH --time=1440
+#SBATCH --mem-per-cpu=6000
+#SBATCH --job-name=td_jepa
+#SBATCH --cpus-per-task=8
+#SBATCH --gpus=rtx_4090:1
+#SBATCH --gres=gpumem:12g
+#SBATCH --tmp=20GB"""
+
+    try:
+        os.mkdir(base_config["work_dir"])
+    except FileExistsError:
+        # ask what to do if results_dir exists
+        print(f"Directory {base_config['work_dir']} exists. Delete?")
+        if input().lower() in ["y", "yes"]:
+            print("Deleting result directory.")
+            shutil.rmtree(base_config["work_dir"], ignore_errors=True)
+            os.mkdir(base_config["work_dir"])
+        else:
+            print("Exiting.")
+            exit(0)
+
+    # optional: copy code for reproducibility
+    # we recommend running a fresh clone instead
+    # os.mkdir(base_config["work_dir"] / "code")
+    # for path in ["metamotivo", "scripts", "uv.lock", "pyproject.toml"]:
+    #     os.system(f"cp -r {path} {base_config['work_dir'] / 'code' / path}")
+
+    base_config = flatten(base_config)
+    for trial in trials:
+        config = deepcopy(base_config)
+        config.update(flatten(trial))
+        config = TrainConfig(**unflatten(config))
+
+        os.mkdir(trial["work_dir"])
+        json_path = trial["work_dir"] + "/config.json"
+        with open(json_path, "w") as f:
+            f.write(config.model_dump_json())
+        job_script = JOB_PREFIX + "\n" + f"#SBATCH --output={trial['work_dir'] + '/job.sh.out'}\n"
+        job_script += f"#SBATCH --error={trial['work_dir'] + '/job.sh.err'}\n"
+        # nothing to see here, move along...
+        job_script += f"python -c \"from metamotivo.misc.launcher_utils import slurm_entry_point; slurm_entry_point('{json_path}')\""
+        with open(trial["work_dir"] + "/job.sh", "w") as file:
+            file.write(job_script)
+        st = os.stat(trial["work_dir"] + "/job.sh")
+        os.chmod(trial["work_dir"] + "/job.sh", st.st_mode | stat.S_IEXEC)
+
+        print("Submitting...")
+        try:
+            result = run(
+                ["sbatch " + trial["work_dir"] + "/job.sh"],
+                cwd=str(os.getcwd()),
+                shell=True,
+                stdout=PIPE,
+                timeout=20.0,
+            )
+        except TimeoutExpired:
+            print("Submission hangs. Exiting. Check for orphan jobs.")
+            exit()
+        cluster_id = int(result.stdout.decode("utf-8").split(" ")[-1])
+        print(f"Cluster ID: {cluster_id}")
+    print("Submitted!")
+
+
+def launch_with_exca(
+    base_config: dict,
+    trials: list[dict],
+):
+
+    import exca as xk
+    from exca.confdict import ConfDict
+
+    _PATHS_TO_COPY = ["metamotivo", "scripts", "entry_points", "uv.lock", "pyproject.toml"]
+    CLUSTER_CONFIG = {
+        "timeout_min": 24 * 60,  # 24 hours timeout
+        # TODO gres is not in exca. Should it go through "slurm_additional_parameters"?
+        # "slurm_gres": "gpu:YOUR_GPU_TYPE:1",
+        "gpus_per_node": 1,
+        "slurm_constraint": "",
+        "slurm_partition": "",
+        # TODO [RELEASE] double check requirements when training from pixels and adjust comments
+        "cpus_per_task": 16,  # we suggest at least 16 cpus when training from pixels
+        "mem_gb": 80,  # we suggest at least 80gb when training from pixels
+        "cluster": "slurm",
+    }
+
+    class InfraTrainConfig(TrainConfig):
+
+        infra: xk.TaskInfra = xk.TaskInfra(version="1")
+
+        @infra.apply
+        def process(self):
+            ws = self.build()
+            ws.train()
+
+    workdir_root = pathlib.Path(base_config["work_dir"])
+    exca_infra_args = CLUSTER_CONFIG.copy()
+    # exca needs its own folder to store code, logs, etc
+    exca_infra_args["folder"] = str(workdir_root / "_exca")
+    # tell exca which paths to copy
+    exca_infra_args["workdir"] = {"copied": _PATHS_TO_COPY, "includes": tuple()}
+    # By default force new runs and do not use cache
+    exca_infra_args["mode"] = "force"
+    base_config["infra"] = exca_infra_args
+
+    base_config = InfraTrainConfig(**base_config)
+    print("Using current Python environment for experiments.")
+
+    # Instantiate the base config as a config_cls object, and now launch the runs
+    with base_config.infra.job_array(max_workers=1000, allow_empty=True) as array:
+        for trial in trials:
+            # ConfDict == nested dicts with convenience features (recursive update, flattening to "."-separated list)
+            trial = ConfDict(trial)
+            # Note: use of clone_obj important for exca tracking (how many configs are created etc)
+            # This will create clone of base_config, with "trial" ConfDict applied on top
+            new_config = base_config.infra.clone_obj(trial)
+            array.append(new_config)
 
 
 def launch_trials(
-    base_config: BaseConfig,
-    trials: list[ConfDict | dict],
-    local: bool = False,
+    base_config: dict,
+    trials: list[dict],
+    first_only: bool = False,
     dry: bool = False,
-    # Maximum number of workers (i.e. concurrent jobs in the SLURM job array) to be launched at any time
-    max_workers: int = 1024,
-    # Config keys (only top level) to check for duplicates
-    prevent_duplicates_of: tuple[str] = ("work_dir",),
-    # Explicit flag to use current python env to run experiments
-    # This is highly discouraged, as it will lead to issues if environment changes during experiments
-    use_current_python_env: bool = False,
+    slurm: bool = False,
+    exca: bool = False,
 ):
     """
-    Launch trials, applying their changes on the base_config and using the exca job array.
-    The job array will use maximum max_workers at a time.
-    If local is True, run the first trial locally.
-    If dry is True, print the configs instead of running them.
+    Launch trials, applying their changes on the base_config.
+
+    Args:
+        base_config: The base configuration dictionary.
+        trials: A list of trial configuration dictionaries.
+        first_only: If True, only launch the first trial.
+        dry: If True, print the configurations instead of launching them.
     """
-
-    assert local, "Only local runs are supported currently"
-
-    # Build full config
-    first_trial = ConfDict(trials[0])
-    launch_config = base_config.infra.clone_obj(first_trial)
-    if dry:
-        rich.print(launch_config)
-    else:
-        assert isinstance(launch_config, OfflineTrainConfig)
-        workspace = launch_config.build()
-        workspace.train()
-    return
-
-
-def get_all_xmls_from_location(xml_location: str) -> tp.List[str]:
-    """
-    Get all the xml files from a given location.
-    """
-    from pathlib import Path
-
-    xml_files = []
-    for path in Path(xml_location).rglob("*.xml"):
-        xml_files.append(str(path))
-    return xml_files
+    assert not (slurm and exca), "Cannot use both slurm and exca launchers"
+    if not slurm and not exca:
+        return launch_locally(base_config, trials, first_only, dry)
+    assert not first_only, "first_only is not supported with exca launcher"
+    assert not dry, "dry is not supported with exca launcher"
+    if slurm:
+        return launch_with_sbatch(base_config, trials)
+    elif exca:
+        return launch_with_exca(base_config, trials)

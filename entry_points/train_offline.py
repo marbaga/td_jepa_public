@@ -18,7 +18,6 @@ import typing as tp
 from pathlib import Path
 from typing import Dict, List
 
-import exca as xk
 import gymnasium
 import numpy as np
 import pydantic
@@ -90,22 +89,13 @@ class TrainConfig(BaseConfig):
 
     tags: dict = pydantic.Field(default_factory=lambda: {})
 
-    # exca
-    infra: xk.TaskInfra = xk.TaskInfra(version="1")
-
     def model_post_init(self, context):
         if self.relabel_dataset:
             if not isinstance(self.env, (DMCEnvConfig, OGBenchEnvConfig)):
                 raise ValueError("Relabeling is only supported for DMC and OGBench environments")
 
     def build(self):
-        """In case of cluster run, use exca and process instead of explivit build"""
         return Workspace(self)
-
-    @infra.apply
-    def process(self):
-        ws = self.build()
-        ws.train()
 
 
 def create_agent_or_load_checkpoint(work_dir: Path, cfg: TrainConfig, agent_build_kwargs: dict[str, tp.Any]):
