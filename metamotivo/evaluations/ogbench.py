@@ -9,13 +9,12 @@ import numpy as np
 import pydantic
 import torch
 import tqdm
-from humenv.bench.gym_utils.rollouts import rollout
 from torch.utils._pytree import tree_map
 
 from metamotivo.envs.ogbench import OGBenchEnvConfig
+from metamotivo.envs.utils.rollout import rollout
 from metamotivo.evaluations.base import BaseEvalConfig, extract_model
 from metamotivo.nn_models import eval_mode
-from metamotivo.wrappers.humenvbench import BaseHumEnvBenchWrapper
 
 
 class OGBenchRewardEvalConfig(BaseEvalConfig):
@@ -48,7 +47,6 @@ class OGBenchRewardEvaluation:
         wandb_dict = {}
         eval_metrics = {}
         model = extract_model(agent_or_model)
-        model = BaseHumEnvBenchWrapper(model=model, numpy_output=True)
 
         pbar = tqdm.tqdm(self.cfg.tasks, leave=False, disable=self.cfg.disable_tqdm)
         for task in pbar:
@@ -62,13 +60,13 @@ class OGBenchRewardEvaluation:
             pbar.set_description(f"task {task} (rollout)")
             ctx = [None] * self.cfg.num_envs if ctx is None else ctx.repeat(self.cfg.num_envs, 1)
             with torch.no_grad(), eval_mode(model):
-                st, eps = rollout(
+                st, infos = rollout(
                     eval_env,
                     agent=model,
                     num_episodes=self.cfg.num_episodes,
                     ctx=ctx,
                 )  # return statistics and episodes
-            st["success"] = [e["info"]["success"].any() for e in eps]
+            st["success"] = [any([step.get("success", False) for step in info]) for info in infos]
             print(task, {k: np.mean(v) for k, v in st.items()})
             eval_metrics[task] = st
             wandb_dict[f"{task}/reward"] = np.mean(st["reward"])

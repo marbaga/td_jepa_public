@@ -10,14 +10,13 @@ import numpy as np
 import pydantic
 import torch
 import tqdm
-from humenv.bench.gym_utils.rollouts import rollout
 from torch.utils._pytree import tree_map
 
 from metamotivo.envs.dmc import DMCEnvConfig
 from metamotivo.envs.dmc_tasks import dmc
+from metamotivo.envs.utils.rollout import rollout
 from metamotivo.evaluations.base import BaseEvalConfig, extract_model
 from metamotivo.nn_models import eval_mode
-from metamotivo.wrappers.humenvbench import BaseHumEnvBenchWrapper
 
 
 class DMCRewardEvalConfig(BaseEvalConfig):
@@ -49,7 +48,6 @@ class DMCRewardEvaluation:
         wandb_dict = {}
         eval_metrics = {}
         model = extract_model(agent_or_model)
-        model = BaseHumEnvBenchWrapper(model=model, numpy_output=True)
 
         pbar = tqdm.tqdm(self.cfg.tasks, leave=False, disable=self.cfg.disable_tqdm)
         for task in pbar:
