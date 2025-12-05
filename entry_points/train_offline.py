@@ -124,7 +124,6 @@ def create_agent_or_load_checkpoint(work_dir: Path, cfg: TrainConfig, agent_buil
     return agent, cfg, checkpoint_time
 
 
-# TODO this can be unified with train_humenv
 def init_wandb(cfg: TrainConfig):
     exp_name = "dmc-offline"
     wandb_name = exp_name
@@ -136,15 +135,14 @@ class Workspace:
     def __init__(self, cfg: TrainConfig) -> None:
         self.cfg = cfg
 
-        # NOTE we are assuming num_envs returns unvectorized environments
-        sample_env, _ = cfg.env.build(num_envs=1)
+        sample_env, _ = cfg.env.build()
         self.obs_space = sample_env.observation_space
         assert isinstance(self.obs_space, (gymnasium.spaces.Box, gymnasium.spaces.Dict)), (
             "Only Box and Dict observation spaces are supported"
         )
 
         self.action_space = sample_env.action_space
-        assert len(self.action_space.shape) == 1, "Only 1D action space is supported (first dim should be vector env)"
+        assert len(self.action_space.shape) == 1, "Only 1D action space is supported"
         self.action_dim = self.action_space.shape[0]
 
         print(f"Workdir: {self.cfg.work_dir}")
@@ -184,13 +182,6 @@ class Workspace:
         relabel_fn = self.cfg.env.get_relabel_fn(self.cfg.env.task) if self.cfg.relabel_dataset else None
         replay_buffer = self.cfg.data.build(buffer_device, self.cfg.agent.train.batch_size, self.cfg.env.frame_stack, relabel_fn)
         print(replay_buffer["train"])
-
-        if hasattr(self.agent, "setup_normalizer_from_data"):
-            print("Preparing normalizer from data")
-            assert self.cfg.data.buffer_type == "dict", (
-                f"setup_normalizer_from_data not supported with buffer type {self.cfg.data.buffer_type}"
-            )
-            self.agent.setup_normalizer_from_data(replay_buffer["train"].storage)
 
         total_metrics = None
         fps_start_time = time.time()

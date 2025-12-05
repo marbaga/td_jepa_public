@@ -58,8 +58,6 @@ def ant_reward_fn(qpos: np.ndarray, action: np.ndarray, *, target_position: np.n
 
 def create_ogbench_env(
     task,
-    num_envs=1,
-    vectorization_mode: str = "async",
     wrappers=None,
     seed=None,
     render_height: int = 64,
@@ -73,28 +71,10 @@ def create_ogbench_env(
             task = "visual-" + task
         case _:
             raise ValueError(f"Unsupported observation type {obs_type}")
-
     env_kwargs = {"height": render_height, "width": render_width}
-
-    def create_single_env():
-        def trunk():
-            env = make_env_and_datasets(task, env_only=True, **env_kwargs)
-            for wrapper in wrappers:
-                env = wrapper(env)
-            return env
-
-        return trunk
-
-    assert num_envs >= 1
-    if num_envs == 1:
-        env = create_single_env()()
-    else:
-        envs = [create_single_env() for _ in range(num_envs)]
-        if vectorization_mode == "sync":
-            env = gymnasium.vector.SyncVectorEnv(envs)
-        else:
-            env = gymnasium.vector.AsyncVectorEnv(envs)
-
+    env = make_env_and_datasets(task, env_only=True, **env_kwargs)
+    for wrapper in wrappers:
+        env = wrapper(env)
     env.reset(seed=seed)  # this is used to pass the seed to the environment
     return env, {}
 
@@ -106,7 +86,6 @@ class OGBenchEnvConfig(BaseConfig):
     task: str
 
     seed: int = 0
-    vectorization_mode: tp.Literal["sync", "async"] = "async"
 
     # observation type
     # state_pixels is not supported atm
@@ -121,16 +100,13 @@ class OGBenchEnvConfig(BaseConfig):
     render_width: int = 64
     frame_stack: int = 1
 
-    def build(self, num_envs: int = 1) -> tp.Tuple[gymnasium.Env, tp.Any]:
-        assert num_envs >= 1
+    def build(self) -> tp.Tuple[gymnasium.Env, tp.Any]:
         wrappers = [lambda env: DictObsWrapper(env, self.obs_type)]
         if self.obs_type == "pixels":
             wrappers.append(lambda env: PixelWrapper(env, self.frame_stack))
         if self.add_time:
             wrappers.append(lambda env: gymnasium.wrappers.TimeAwareObservation(env, flatten=False))
         return create_ogbench_env(
-            num_envs=num_envs,
-            vectorization_mode=self.vectorization_mode,
             task=self.task,
             seed=self.seed,
             wrappers=wrappers,

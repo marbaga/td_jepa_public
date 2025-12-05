@@ -22,7 +22,6 @@ from ...nn_models import (
     BackwardArchiConfig,
     ForwardArchiConfig,
     IdentityNNConfig,
-    ResidualActorArchiConfig,
     SimpleActorArchiConfig,
     eval_mode,
 )
@@ -54,7 +53,7 @@ class TDJEPAModelArchiConfig(BaseConfig):
     #    - psi_mlp_encoder(psi_rgb_encoder(obs))
     phi_mlp_encoder: BackwardArchiConfig = BackwardArchiConfig()
     psi_mlp_encoder: BackwardArchiConfig = BackwardArchiConfig()
-    actor: SimpleActorArchiConfig | ResidualActorArchiConfig = pydantic.Field(SimpleActorArchiConfig(), discriminator="name")
+    actor: SimpleActorArchiConfig = pydantic.Field(SimpleActorArchiConfig(), discriminator="name")
 
 
 class TDJEPAModelConfig(BaseModelConfig):
@@ -171,12 +170,6 @@ class TDJEPAModel(BaseModel):
         next_obs = tree_map(lambda x: x.to(self.device), next_obs)
         reward = reward.to(self.device)
         z = torch.linalg.lstsq(self.psi(next_obs), reward).solution.T
-        return self.project_z(z)
-
-    def goal_inference(self, next_obs: torch.Tensor | dict[str, torch.Tensor]) -> torch.Tensor:
-        z = self.psi(next_obs)
-        inv_cov = torch.inverse(self._z_cov + 1e-6 * torch.eye(*self._z_cov.size(), device=z.device))
-        z = torch.matmul(z, inv_cov)
         return self.project_z(z)
 
     @classmethod

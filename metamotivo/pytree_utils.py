@@ -3,21 +3,8 @@
 # This source code is licensed under the CC BY-NC 4.0 license found in the
 # LICENSE file in the root directory of this source tree.
 
-import numpy as np
 import torch
-from torch.utils._pytree import tree_flatten, tree_map
-
-
-def clone_if_tensor(x):
-    if isinstance(x, torch.Tensor):
-        return x.clone()
-    return x
-
-
-def tree_clone(pytree):
-    """Clone all tensors in a pytree"""
-
-    return tree_map(clone_if_tensor, pytree)
+from torch.utils._pytree import tree_flatten
 
 
 def tree_check_batch_size(pytree, batch_size, prefix=""):
@@ -38,14 +25,3 @@ def tree_get_batch_size(pytree):
     batch_sizes = [t.shape[0] for t in tensors]
     assert all(bs == batch_sizes[0] for bs in batch_sizes), f"All tensors must have the same batch size {batch_sizes[0]}, got {batch_sizes}"
     return batch_sizes[0]
-
-
-def tree_numpy_to_tensor(pytree):
-    """Convert all numpy arrays in a pytree to torch tensors"""
-
-    def convert(x):
-        if isinstance(x, np.ndarray):
-            return torch.from_numpy(x)
-        return x
-
-    return tree_map(convert, pytree)

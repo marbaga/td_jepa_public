@@ -44,8 +44,8 @@ class DictInputFilterConfig(BaseConfig):
             if len(self.key) == 1:
                 # If only one key is provided, we can use DictInputFilter
                 return DictInputFilter(space, DictInputFilterConfig(key=self.key[0]))
-            # Note: why different class for single-key case and two-key case?
-            #       Mainly pre-emptive avoidance of nesting if-clauses with isinstance checks, in case torch compiler does not like it
+            # different class for single-key case and two-key case for 
+            # pre-emptive avoidance of nesting if-clauses with isinstance checks, in case torch compiler does not like it
             return DictInputConcatFilter(space, self)
 
 

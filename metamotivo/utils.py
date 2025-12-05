@@ -3,14 +3,10 @@
 # This source code is licensed under the CC BY-NC 4.0 license found in the
 # LICENSE file in the root directory of this source tree.
 
-import dataclasses
 import datetime
-import hashlib
 import random
 import string
-from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, Dict
 
 import numpy as np
 import torch
@@ -27,42 +23,10 @@ class EveryNStepsChecker:
         self.every_n_steps = every_n_steps
 
     def check(self, step: int) -> bool:
-        if (step - self.last_step) >= self.every_n_steps or (self.step_zero_should_trigger and step == 0):
-            return True
-        else:
-            return False
+        return (step - self.last_step) >= self.every_n_steps or (self.step_zero_should_trigger and step == 0)
 
     def update_last_step(self, step: int):
         self.last_step = step
-
-
-def dict_to_config(source: Mapping, target: Any):
-    target_fields = {field.name for field in dataclasses.fields(target)}
-    for field in target_fields:
-        if field in source.keys() and dataclasses.is_dataclass(getattr(target, field)):
-            dict_to_config(source[field], getattr(target, field))
-        elif field in source.keys():
-            setattr(target, field, source[field])
-        else:
-            print(f"[WARNING] field {field} not found in source config")
-
-
-def get_default_torch_device() -> str:
-    # NOTE when using when launching on cluster, it would pick the device of _submission node_, not the node where the job is running
-    return "cuda" if torch.cuda.is_available() else "cpu"
-
-
-# TODO add typing hint that we return the same object
-def config_from_dict(source: Dict, config_class: Any) -> dataclasses.dataclass:
-    target = config_class()
-    dict_to_config(source, target)
-    return target
-
-
-def all_subclasses(cls):
-    """Get all subclasses of cls recursively."""
-    subs = set(cls.__subclasses__())
-    return subs | {s for c in subs for s in all_subclasses(c)}
 
 
 def get_unique_name() -> str:
@@ -83,9 +47,3 @@ def set_seed_everywhere(seed):
         torch.cuda.manual_seed_all(seed)
     np.random.seed(seed)
     random.seed(seed)
-
-
-def get_md5_of_file(filepath: str) -> str:
-    file_bytes = open(filepath, "rb").read()
-    digest = hashlib.md5(file_bytes).hexdigest()
-    return digest

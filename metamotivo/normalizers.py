@@ -88,7 +88,7 @@ class ObsNormalizer(nn.Module):
             self._normalizers = cfg.normalizers.build(obs_space)
 
     def forward(self, x: dict[str, torch.Tensor] | torch.Tensor) -> dict[str, torch.Tensor] | torch.Tensor:
-        # TODO is this is-instance check bad for performance?
+        # this is-instance check is pontentially bad for performance
         if isinstance(self.cfg.normalizers, dict):
             normalized_obs = {}
             for key in self._normalizers.keys():

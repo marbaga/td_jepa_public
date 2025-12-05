@@ -26,43 +26,23 @@ CAMERA_IDS = {
 
 
 def create_dmc_env(
-    num_envs=1,
-    vectorization_mode: str = "async",
     wrappers=None,
     **env_kwargs,
 ):
     print(env_kwargs)
     import random
-
-    mp_context = env_kwargs.pop("context", None)
     seed = env_kwargs.pop("seed", random.randint(0, 9999))
-
-    def create_single_env(**kwargs):
-        def trunk():
-            env = dmc.make(f"{kwargs.get('domain')}_{kwargs.get('task')}", seed=kwargs.get("seed", 1))
-            env = DmcGymWrapper(
-                env,
-                height=kwargs.get("render_height", 64),
-                width=kwargs.get("render_width", 64),
-                camera_id=kwargs.get("camera_id", 0),
-                obs_type=kwargs.get("obs_type", "state"),
-            )
-            if wrappers is not None:
-                for wrapper in wrappers:
-                    env = wrapper(env)
-            return env
-
-        return trunk
-
-    if num_envs > 1:
-        envs = [create_single_env(**env_kwargs) for _ in range(num_envs)]
-        if vectorization_mode == "sync":
-            env = gymnasium.vector.SyncVectorEnv(envs)
-        else:
-            env = gymnasium.vector.AsyncVectorEnv(envs, context=mp_context)
-    else:
-        env = create_single_env(**env_kwargs)()
-
+    env = dmc.make(f"{env_kwargs.get('domain')}_{env_kwargs.get('task')}", seed=env_kwargs.get("seed", 1))
+    env = DmcGymWrapper(
+        env,
+        height=env_kwargs.get("render_height", 64),
+        width=env_kwargs.get("render_width", 64),
+        camera_id=env_kwargs.get("camera_id", 0),
+        obs_type=env_kwargs.get("obs_type", "state"),
+    )
+    if wrappers is not None:
+        for wrapper in wrappers:
+            env = wrapper(env)
     env.reset(seed=seed)  # this is used to pass the seed to the environment
     return env, {}
 
@@ -71,11 +51,9 @@ class DMCEnvConfig(BaseConfig):
     name: tp.Literal["dmc"] = "dmc"
 
     domain: tp.Literal["walker", "cheetah", "quadruped", "pointmass"]
-    # TODO this is hard to sanity check for, because dmc tries to create task from task string in multiple ways
     task: str
 
     seed: int = 0
-    vectorization_mode: tp.Literal["sync", "async"] = "async"
 
     # observation type
     obs_type: tp.Literal["state", "pixels", "state_pixels"] = "state"
@@ -89,16 +67,13 @@ class DMCEnvConfig(BaseConfig):
     render_width: int = 64
     frame_stack: int = 1
 
-    def build(self, num_envs: int = 1) -> tp.Tuple[gymnasium.Env, tp.Any]:
-        assert num_envs >= 1
+    def build(self) -> tp.Tuple[gymnasium.Env, tp.Any]:
         wrappers = []
         if self.obs_type == "pixels":
             wrappers.append(lambda env: PixelWrapper(env, self.frame_stack))
         if self.add_time:
             wrappers.append(lambda env: TimeAwareObservation(env, flatten=False))
         return create_dmc_env(
-            num_envs=num_envs,
-            vectorization_mode=self.vectorization_mode,
             domain=self.domain,
             task=self.task,
             seed=self.seed,

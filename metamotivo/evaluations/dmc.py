@@ -12,32 +12,27 @@ import torch
 import tqdm
 from torch.utils._pytree import tree_map
 
+from metamotivo.base import BaseConfig
 from metamotivo.envs.dmc import DMCEnvConfig
 from metamotivo.envs.dmc_tasks import dmc
 from metamotivo.envs.utils.rollout import rollout
-from metamotivo.evaluations.base import BaseEvalConfig, extract_model
+from metamotivo.evaluations.base import extract_model
 from metamotivo.nn_models import eval_mode
 
 
-class DMCRewardEvalConfig(BaseEvalConfig):
+class DMCRewardEvalConfig(BaseConfig):
     name: tp.Literal["dmc_reward_eval"] = "dmc_reward_eval"
-    name_in_logs: str = "dmc_reward_eval"
+    name_in_logs: str = "reward"
     env: DMCEnvConfig
 
-    # TODO again hard to validate the tasks properly as DMC has clever logic to try to init tasks
     tasks: list[str] = pydantic.Field(default_factory=lambda: [])
     num_episodes: int = 100
-    num_envs: int = 1
 
     num_inference_samples: int = 50_000
     disable_tqdm: bool = True
 
     def build(self):
         return DMCRewardEvaluation(self)
-
-    @classmethod
-    def requires_replay_buffer(self):
-        return True
 
 
 class DMCRewardEvaluation:
@@ -52,12 +47,12 @@ class DMCRewardEvaluation:
         pbar = tqdm.tqdm(self.cfg.tasks, leave=False, disable=self.cfg.disable_tqdm)
         for task in pbar:
             pbar.set_description(f"task {task}")
-            eval_env, _ = self.cfg.env.model_copy(update={"task": task}).build(self.cfg.num_envs)
+            eval_env, _ = self.cfg.env.model_copy(update={"task": task}).build()
             pbar.set_description(f"task {task} (inference)")
             ctx, relabel_metrics = self._reward_inference(agent_or_model, task, replay_buffer)
             print(relabel_metrics)
             pbar.set_description(f"task {task} (rollout)")
-            ctx = [None] * self.cfg.num_envs if ctx is None else ctx.repeat(self.cfg.num_envs, 1)
+            ctx = [None] if ctx is None else ctx
             with torch.no_grad(), eval_mode(model):
                 st, _ = rollout(
                     eval_env,

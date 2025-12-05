@@ -59,7 +59,7 @@ def load_model(
     loaded_config = config_class(**loaded_config)
     loaded_model = loaded_config.build(**build_kwargs)
 
-    # Matteo: this is a workaround to handle loading of model with and without target networks
+    # This is a workaround to handle loading of model with and without target networks
     # A better solution may be to add a flag to the model config so that it is automatically
     # handled by the class.
     # I've added the flag strict so that we can also load the model without targets if

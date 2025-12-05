@@ -52,7 +52,6 @@ class DrQEncoder(nn.Module):
             nn.Flatten(),
         )
 
-        # TODO: is there a fundamental reason not to do this?
         with torch.no_grad():
             self.repr_dim = np.prod(self.trunk(torch.zeros(1, *filtered_space.shape)).shape)
 
@@ -110,7 +109,6 @@ class DreamerEncoder(nn.Module):
             nn.Conv2d(32, 32, 3, stride=1),
         )
 
-        # TODO: is there a fundamental reason not to do this?
         with torch.no_grad():
             self.repr_dim = np.prod(self.trunk(torch.zeros(1, *filtered_space.shape)).shape)
 
@@ -186,7 +184,6 @@ class ImpalaEncoder(nn.Module):
             nn.ReLU(),
         )
 
-        # TODO: is there a fundamental reason not to do this?
         with torch.no_grad():
             self.repr_dim = np.prod(self.trunk(torch.zeros(1, *filtered_space.shape)).shape)
 

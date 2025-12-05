@@ -11,20 +11,20 @@ import torch
 import tqdm
 from torch.utils._pytree import tree_map
 
+from metamotivo.base import BaseConfig
 from metamotivo.envs.ogbench import OGBenchEnvConfig
 from metamotivo.envs.utils.rollout import rollout
-from metamotivo.evaluations.base import BaseEvalConfig, extract_model
+from metamotivo.evaluations.base import extract_model
 from metamotivo.nn_models import eval_mode
 
 
-class OGBenchRewardEvalConfig(BaseEvalConfig):
+class OGBenchRewardEvalConfig(BaseConfig):
     name: tp.Literal["ogbench_reward_eval"] = "ogbench_reward_eval"
     name_in_logs: str = "reward"
     env: OGBenchEnvConfig
 
     tasks: list[str] = pydantic.Field(default_factory=lambda: [])
     num_episodes: int = 100
-    num_envs: int = 1
 
     num_inference_samples: int = 50_000
     shift_reward: float = 0.0
@@ -33,16 +33,11 @@ class OGBenchRewardEvalConfig(BaseEvalConfig):
     def build(self):
         return OGBenchRewardEvaluation(self)
 
-    @classmethod
-    def requires_replay_buffer(self):
-        return True
-
 
 class OGBenchRewardEvaluation:
     def __init__(self, config: OGBenchRewardEvalConfig):
         self.cfg = config
 
-    # TODO: the logic here is almost entirely shared with DMC
     def run(self, *, timestep, agent_or_model, replay_buffer, logger, **kwargs):
         wandb_dict = {}
         eval_metrics = {}
@@ -51,14 +46,12 @@ class OGBenchRewardEvaluation:
         pbar = tqdm.tqdm(self.cfg.tasks, leave=False, disable=self.cfg.disable_tqdm)
         for task in pbar:
             pbar.set_description(f"task {task}")
-            eval_env, _ = self.cfg.env.model_copy(update={"task": task}).build(self.cfg.num_envs)
+            eval_env, _ = self.cfg.env.model_copy(update={"task": task}).build()
             pbar.set_description(f"task {task} (inference)")
-            ctx, relabel_metrics = self._reward_inference(
-                env=eval_env, agent_or_model=agent_or_model, task=task, replay_buffer=replay_buffer
-            )
+            ctx, relabel_metrics = self._reward_inference(agent_or_model, task, replay_buffer)
             print(relabel_metrics)
             pbar.set_description(f"task {task} (rollout)")
-            ctx = [None] * self.cfg.num_envs if ctx is None else ctx.repeat(self.cfg.num_envs, 1)
+            ctx = [None] if ctx is None else ctx
             with torch.no_grad(), eval_mode(model):
                 st, infos = rollout(
                     eval_env,
@@ -77,10 +70,10 @@ class OGBenchRewardEvaluation:
             eval_env.close()
             del eval_env
 
-        rewards = np.concat([el["reward"] for el in eval_metrics.values()])
+        rewards = np.concatenate([el["reward"] for el in eval_metrics.values()])
         wandb_dict["eval/reward"] = np.mean(rewards)
         wandb_dict["eval/reward#std"] = np.std(rewards)
-        successes = np.concat([el["success"] for el in eval_metrics.values()])
+        successes = np.concatenate([el["success"] for el in eval_metrics.values()])
         wandb_dict["eval/success"] = np.mean(successes)
 
         # log reward results
@@ -95,9 +88,8 @@ class OGBenchRewardEvaluation:
 
         return eval_metrics, wandb_dict
 
-    def _reward_inference(self, env, agent_or_model, task, replay_buffer) -> torch.Tensor:
+    def _reward_inference(self, agent_or_model, task, replay_buffer) -> torch.Tensor:
         model = extract_model(agent_or_model)
-        # TODO other solutions? Do we want all models to implement reward_inference?
         if not hasattr(model, "reward_inference"):
             return torch.zeros((1, 1)), {}
         num_samples = self.cfg.num_inference_samples

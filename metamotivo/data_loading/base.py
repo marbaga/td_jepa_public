@@ -74,8 +74,8 @@ def load_trajectories(
     obs_type: tp.Literal["state", "pixels", "state_pixels"] = "state",
 ):
     data = np.load(str(episode_fns[0]))
-    # dmc data only has fixed-length trajectories
-    # TODO: if we want to handle trajectories of varying length we need to read all files here and compute the total number of transitions
+    # EXORL data only has fixed-length trajectories
+    # in order to handle trajectories of varying length we would need to read all files here and compute the total number of transitions
     traj_len = data["observation"].shape[0]
     n = traj_len * len(episode_fns)
     if obs_type == "state":

@@ -272,14 +272,3 @@ def dtype_numpytotorch(np_dtype: Any) -> torch.dtype:
         return torch.uint8
     else:
         raise ValueError(f"Unknown type {np_dtype}")
-
-
-def dtype_numpytotorch_lower_precision(np_dtype: Any) -> torch.dtype:
-    """
-    Returns a lower precision dtype for the given numpy dtype.
-    Mainly float64 to float32
-    """
-    th_dtype = dtype_numpytotorch(np_dtype)
-    if th_dtype == torch.float64:
-        return torch.float32
-    return th_dtype
