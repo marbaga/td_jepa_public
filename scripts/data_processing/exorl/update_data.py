@@ -4,29 +4,22 @@
 # LICENSE file in the root directory of this source tree.
 
 import functools
-import warnings
-from multiprocessing import cpu_count, current_process, get_context
-from typing import Any, List, Literal
-
-import tqdm
-import tyro
-
-warnings.filterwarnings("ignore", category=DeprecationWarning)
-
+import numbers
 import os
 
-from scripts.data_processing.exorl.exorl_utils import get_domain, load_episode, set_seed_everywhere
+from multiprocessing import cpu_count, current_process, get_context
+from pathlib import Path
+from typing import Any, List, Literal
 
 os.environ["MKL_SERVICE_FORCE_INTEL"] = "1"
 os.environ["MUJOCO_GL"] = "egl"
 
-import numbers
-from pathlib import Path
-
 import numpy as np
+import tqdm
+import tyro
 
-# import dmc
 from metamotivo.envs.dmc_tasks import dmc as cdmc
+from scripts.data_processing.exorl.exorl_utils import get_domain, load_episode, set_seed_everywhere
 
 
 def _atleast2d(x):
@@ -35,9 +28,7 @@ def _atleast2d(x):
     return x
 
 
-def relable_episode(env, episode, env_name, save_rgb=False):
-    # joint_state_list = []
-    # reward_spec = env.reward_spec()
+def relabel_episode(env, episode, env_name, save_rgb=False):
     states = episode["physics"]
     state0 = states[0]
     og_actions = episode["action"]
@@ -77,7 +68,6 @@ def relable_episode(env, episode, env_name, save_rgb=False):
             image_list.append(img)
     episode = {
         "observation": _atleast2d(np.array(obs, dtype=np.float32)),
-        # "qpos": np.array(qpos),
         "physics": _atleast2d(np.array(physics, dtype=np.float64)),
         "action": _atleast2d(np.array(new_actions, dtype=np.float32)),
         "reward": _atleast2d(np.array(rewards, dtype=np.float32)),
@@ -130,15 +120,14 @@ def main(
 
     # create data storage
     domain = get_domain(task)
-    datasets_dir = Path(datasets_dir)
-    replay_dir = datasets_dir.resolve() / domain / expl_agent / "buffer"
-    replay_img_dir = new_dataset_dir.resolve() / domain / expl_agent / "buffer"
+    replay_dir = Path(datasets_dir).resolve() / domain / expl_agent / "buffer"
+    replay_img_dir = Path(new_dataset_dir).resolve() / domain / expl_agent / "buffer"
     os.makedirs(replay_img_dir, exist_ok=True)
-    print(f"replay dir: {replay_dir}")
+    print(f"Replay dir: {replay_dir}")
 
     eps_fns = sorted(replay_dir.glob("*.npz"))
 
-    print(f"using {num_workers} workers out of {cpu_count()}")
+    print(f"Using {num_workers} workers out of {cpu_count()}")
     if num_workers == 0:
         save_new_files(eps_fns, seed, task, replay_img_dir, env_name, save_rgb)
     else:
@@ -166,7 +155,6 @@ def save_new_files(
     save_rgb: bool = False,
 ):
     _task = task.replace(f"{env_name}_", "")
-    print(env_name, _task)
     env = cdmc._make_dmc(domain=env_name, task=_task, seed=seed)
 
     try:
@@ -175,9 +163,8 @@ def save_new_files(
         disable = False
 
     for eps_fn in tqdm.tqdm(eps_fns, disable=disable):
-        eps_idx, eps_len = [int(x) for x in eps_fn.stem.split("_")[1:]]
         episode = load_episode(eps_fn)
-        episode = relable_episode(env, episode, env_name, save_rgb)
+        episode = relabel_episode(env, episode, env_name, save_rgb)
         file_name = eps_fn.name
         np.savez(replay_img_dir / file_name, **episode)
 

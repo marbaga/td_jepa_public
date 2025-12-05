@@ -6,7 +6,6 @@
 
 import os
 from pathlib import Path
-from typing import Literal
 
 os.environ["MUJOCO_GL"] = "egl"
 
@@ -16,15 +15,18 @@ from tqdm import tqdm
 
 
 def extract(
-    env_name: Literal[
-        "cube-single",
-        "antmaze",
-    ] = "cube_single",
-    output_folder: str = "/fsx-unicorns/shared/datasets/ogbench_original/splitted/",
-    dataset_path: str = "/fsx-unicorns/shared/datasets/ogbench_original/",
-    save_rgb: bool = False,
+    env_name: str,
+    output_folder: str,
+    dataset_path: str | None = None,
 ) -> None:
-    dataset_path = Path(dataset_path) / (env_name + ".npz")
+    if dataset_path is not None:
+        dataset_path = Path(dataset_path) / (env_name + ".npz")
+    else:
+        # download and load from default location
+        from ogbench.utils import make_env_and_datasets, DEFAULT_DATASET_DIR
+        make_env_and_datasets(env_name)
+        dataset_path = Path(DEFAULT_DATASET_DIR).expanduser() / (env_name + ".npz")
+
     print(f"Dataset: {dataset_path}")
     output_folder = Path(output_folder) / (env_name + "/buffer")
     output_folder.mkdir(parents=True, exist_ok=True)
@@ -63,8 +65,7 @@ def extract(
 
 def main(
     output_folder: str,
-    dataset_path: str,
-    save_rgb: bool = False,
+    dataset_path: str | None = None,
 ):
     for env_name in [
         "antmaze-medium-navigate-v0",
@@ -92,7 +93,6 @@ def main(
             env_name=env_name,
             output_folder=output_folder,
             dataset_path=dataset_path,
-            save_rgb=save_rgb,
         )
 
 
