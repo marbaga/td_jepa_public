@@ -46,18 +46,3 @@ class PixelWrapper(gymnasium.wrappers.FrameStackObservation):
         if isinstance(obs, dict):
             return {k: self._reshape(v)[0] for k, v in obs.items()}, *args
         return np.moveaxis(obs, -1, 1).reshape(obs.shape[0] * obs.shape[-1], *obs.shape[1:-1]), *args
-
-
-class DictObsWrapper(gymnasium.ObservationWrapper):
-    """
-    Wrapper that converts the observation space to a dictionary format.
-    Useful for environments that do not return observations in a dictionary format.
-    """
-
-    def __init__(self, env: gymnasium.Env, obs_name: str = "state"):
-        super().__init__(env)
-        self.obs_name = obs_name
-        self.observation_space = gymnasium.spaces.Dict({obs_name: env.observation_space})
-
-    def observation(self, observation):
-        return {self.obs_name: observation}

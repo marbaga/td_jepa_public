@@ -4,7 +4,6 @@
 # LICENSE file in the root directory of this source tree.
 
 import torch
-from torch.utils._pytree import tree_map
 from typing import Any, Dict, List, Tuple
 
 
@@ -13,7 +12,7 @@ def rollout(env: Any, agent: Any, num_episodes: int, ctx: torch.Tensor | None = 
     returns, lengths, infos = [0.0], [0], [[info]]
     ctx = {} if ctx is None else {"z": ctx}
     while True:
-        input_dict = {"obs": tree_map(lambda x: torch.tensor(x, device=agent.device, dtype=torch.float32)[None], observation), **ctx}
+        input_dict = {"obs": torch.tensor(observation, device=agent.device, dtype=torch.float32)[None], **ctx}
         action = agent.act(**input_dict).cpu().numpy()[0]
         observation, reward, terminated, truncated, info = env.step(action)
         done = terminated or truncated

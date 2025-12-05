@@ -66,7 +66,7 @@ class Buffer(IterableDataset):
             self.storage["reward"] = np.zeros((len(self.storage["action"]), 1))
             self.storage["reward"][:-1] = self.relabel_fn(self.storage["physics"][1:], self.storage["action"][:-1])
             self.storage["reward"][self.storage[self.end_key]] = 0.0  # set rewards to zero for truncated episodes
-        assert not any([isinstance(v, dict) for v in self.storage[self.frame_stack_key].values()]), (
+        assert not isinstance(self.storage[self.frame_stack_key], dict), (
             "Only flat observation dictionaries are allowed for the parallel buffer"
         )
         self.ready = True
@@ -77,11 +77,11 @@ class Buffer(IterableDataset):
         idxs = np.random.choice(self.sampleable_idxs, size=self.batch_size)
         timesteps = self.timesteps[idxs]
         offsets = [np.maximum(i, -timesteps) for i in range(-self.frame_stack + 1, 0)] + [0, 1]
-        obs = np_tree_map(lambda v: [v[idxs + offset] for offset in offsets], self.storage[self.frame_stack_key])
+        obs = [self.storage[self.frame_stack_key][idxs + offset] for offset in offsets]
         batch = {
-            self.frame_stack_key: np_tree_map(lambda v: np.concatenate(v[:-1], 1) if self.frame_stack > 1 else v[0], obs),
+            self.frame_stack_key: np.concatenate(obs[:-1], 1) if self.frame_stack > 1 else obs[0],
             "next": {
-                self.frame_stack_key: np_tree_map(lambda v: np.concatenate(v[1:], 1) if self.frame_stack > 1 else v[-1], obs),
+                self.frame_stack_key: np.concatenate(obs[1:], 1) if self.frame_stack > 1 else obs[-1],
             },
         }
         for k in self.output_key:
@@ -96,8 +96,8 @@ class Buffer(IterableDataset):
             future_timesteps = np.clip(future_timesteps, a_min=None, a_max=self.lengths[idxs] - 1)
             future_idxs = idxs + future_timesteps - timesteps
             future_offsets = [np.maximum(-i, -future_timesteps) for i in range(1, self.frame_stack - 1)][::-1] + [0, 1]
-            future_obs = {k: [v[future_idxs + offset] for offset in future_offsets] for k, v in self.storage[self.frame_stack_key].items()}
-            batch["future_observation"] = {k: (np.concatenate(v, 1) if self.frame_stack > 1 else v[-1]) for k, v in future_obs.items()}
+            future_obs = [self.storage[self.frame_stack_key][future_idxs + offset] for offset in future_offsets]
+            batch["future_observation"] = np.concatenate(future_obs, 1) if self.frame_stack > 1 else future_obs[-1]
 
         return batch
 

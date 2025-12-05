@@ -60,7 +60,7 @@ class DmcGymWrapper(gymnasium.Env):
         width: int = 300,
         camera_id: int = 0,
         seed: int = 0,
-        obs_type: Literal["state", "pixels", "state_pixels"] = "state",
+        obs_type: Literal["state", "pixels"] = "state",
     ):
         self.obs_type = ObsType[obs_type]
         self.render_mode = "rgb_array"
@@ -71,21 +71,16 @@ class DmcGymWrapper(gymnasium.Env):
         self.spec = EnvSpec("dmc_gym_env", max_episode_steps=int(self._env._step_limit))
 
         self._action_space = _spec_to_gym(self._env.action_spec())
-        proprioceptive_space = _spec_to_gym(self._env.observation_spec())
-        observation_space = OrderedDict()
         match self.obs_type:
             case ObsType.state:
-                observation_space["state"] = proprioceptive_space
+                observation_space = _spec_to_gym(self._env.observation_spec())
             case ObsType.pixels:
-                observation_space["pixels"] = spaces.Box(
+                observation_space = spaces.Box(
                     low=0, high=255, shape=(self._render_height, self._render_width, 3), dtype=np.uint8
                 )
-            case ObsType.state_pixels:
-                observation_space["state"] = proprioceptive_space
-                observation_space["pixels"] = spaces.Box(
-                    low=0, high=255, shape=(self._render_height, self._render_width, 3), dtype=np.uint8
-                )
-        self._observation_space = gymnasium.spaces.Dict(observation_space)
+            case _:
+                raise ValueError(f"Unknown observation type: {self.obs_type}")
+        self._observation_space = observation_space
         self.reset(seed=seed)
 
     def __getattr__(self, name):
@@ -143,12 +138,9 @@ class DmcGymWrapper(gymnasium.Env):
         obs = OrderedDict()
         match self.obs_type:
             case ObsType.state:
-                obs["state"] = timestep.observation
+                obs = timestep.observation
             case ObsType.pixels:
-                obs["pixels"] = self.render()
-            case ObsType.state_pixels:
-                obs["state"] = timestep.observation
-                obs["pixels"] = self.render()
+                obs = self.render()
             case _:
                 raise ValueError(f"Unknown observation type: {self.obs_type}")
         return obs

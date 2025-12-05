@@ -16,7 +16,6 @@ from torch import nn
 from torch.distributions.utils import _standard_normal
 
 from .base import BaseConfig
-from .nn_filters import IdentityInputFilterConfig, NNFilter
 
 ##########################
 # Initialization utils
@@ -116,7 +115,6 @@ class ForwardArchiConfig(BaseConfig):
     embedding_layers: int = 2
     num_parallel: int = 2
     ensemble_mode: tp.Literal["batch"] = "batch"
-    input_filter: NNFilter = IdentityInputFilterConfig()
 
     def build(self, obs_space, z_dim: int, action_dim, output_dim=None) -> torch.nn.Module:
         """Note: Forward model is also used for critics"""
@@ -141,7 +139,6 @@ class ActorArchiConfig(BaseConfig):
     hidden_dim: int = 1024
     hidden_layers: int = 1
     embedding_layers: int = 2
-    input_filter: NNFilter = IdentityInputFilterConfig()
 
     def build(self, obs_space, z_dim, action_dim):
         if self.model == "simple":
@@ -172,7 +169,6 @@ class BackwardArchiConfig(BaseConfig):
     hidden_dim: int = 256
     hidden_layers: int = 2
     norm: bool = True
-    input_filter: NNFilter = IdentityInputFilterConfig()
 
     def build(self, obs_space, z_dim: int):
         return BackwardMap(obs_space, z_dim, self)
@@ -183,26 +179,20 @@ class BackwardMap(nn.Module):
         super().__init__()
         self.cfg: BackwardArchiConfig = cfg
 
-        self.input_filter = cfg.input_filter.build(obs_space)
-        filtered_space = self.input_filter.output_space
         self.output_space = gymnasium.spaces.Box(low=-np.inf, high=np.inf, shape=(z_dim,), dtype=np.float32)
 
-        assert isinstance(filtered_space, gymnasium.spaces.Box), (
-            f"filtered_space must be a Box space, got {type(filtered_space)}. Did you forget to set input_filter?"
-        )
-        assert len(filtered_space.shape) == 1, "filtered_space must have a 1D shape"
-        seq = [nn.Linear(filtered_space.shape[0], cfg.hidden_dim), nn.LayerNorm(cfg.hidden_dim), nn.Tanh()]
+        assert len(obs_space.shape) == 1, "obs_space must have a 1D shape"
+        seq = [nn.Linear(obs_space.shape[0], cfg.hidden_dim), nn.LayerNorm(cfg.hidden_dim), nn.Tanh()]
         for _ in range(cfg.hidden_layers - 1):
             seq += [nn.Linear(cfg.hidden_dim, cfg.hidden_dim), nn.ReLU()]
         seq += [nn.Linear(cfg.hidden_dim, z_dim)]
         if cfg.hidden_layers == 0:
-            seq = [nn.Linear(filtered_space.shape[0], z_dim)]
+            seq = [nn.Linear(obs_space.shape[0], z_dim)]
         if cfg.norm:
             seq += [Norm()]
         self.net = nn.Sequential(*seq)
 
-    def forward(self, x: torch.Tensor | dict[str, torch.Tensor]) -> torch.Tensor:
-        x = self.input_filter(x)
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.net(x)
 
 
@@ -226,14 +216,8 @@ class ForwardMap(nn.Module):
     ) -> None:
         super().__init__()
 
-        self.input_filter = cfg.input_filter.build(obs_space)
-        filtered_space = self.input_filter.output_space
-
-        assert isinstance(filtered_space, gymnasium.spaces.Box), (
-            f"filtered_space must be a Box space, got {type(filtered_space)}. Did you forget to set input_filter?"
-        )
-        assert len(filtered_space.shape) == 1, "filtered_space must have a 1D shape"
-        obs_dim = filtered_space.shape[0]
+        assert len(obs_space.shape) == 1, "obs_space must have a 1D shape"
+        obs_dim = obs_space.shape[0]
         self.cfg = cfg
         self.z_dim = z_dim
         self.num_parallel = cfg.num_parallel
@@ -248,8 +232,7 @@ class ForwardMap(nn.Module):
         seq += [linear(cfg.hidden_dim, output_dim if output_dim else z_dim, cfg.num_parallel)]
         self.Fs = nn.Sequential(*seq)
 
-    def forward(self, obs: torch.Tensor | dict[str, torch.Tensor], z: torch.Tensor, action: torch.Tensor):
-        obs = self.input_filter(obs)
+    def forward(self, obs: torch.Tensor, z: torch.Tensor, action: torch.Tensor):
         if self.num_parallel > 1:
             obs = obs.expand(self.num_parallel, -1, -1)
             z = z.expand(self.num_parallel, -1, -1)
@@ -271,14 +254,8 @@ class Actor(nn.Module):
     def __init__(self, obs_space, z_dim, action_dim, cfg: SimpleActorArchiConfig) -> None:
         super().__init__()
 
-        self.input_filter = cfg.input_filter.build(obs_space)
-        filtered_space = self.input_filter.output_space
-
-        assert isinstance(filtered_space, gymnasium.spaces.Box), (
-            f"filtered_space must be a Box space, got {type(filtered_space)}. Did you forget to set input_filter?"
-        )
-        assert len(filtered_space.shape) == 1, "filtered_space must have a 1D shape"
-        obs_dim = filtered_space.shape[0]
+        assert len(obs_space.shape) == 1, "obs_space must have a 1D shape"
+        obs_dim = obs_space.shape[0]
         self.cfg: SimpleActorArchiConfig = cfg
 
         self.embed_z = simple_embedding(obs_dim + z_dim, cfg.hidden_dim, cfg.embedding_layers)
@@ -290,8 +267,7 @@ class Actor(nn.Module):
         seq += [linear(cfg.hidden_dim, action_dim)]
         self.policy = nn.Sequential(*seq)
 
-    def forward(self, obs: torch.Tensor | dict[str, torch.Tensor], z, std):
-        obs = self.input_filter(obs)
+    def forward(self, obs: torch.Tensor, z, std):
         z_embedding = self.embed_z(torch.cat([obs, z], dim=-1))  # bs x h_dim // 2
         s_embedding = self.embed_s(obs)  # bs x h_dim // 2
         embedding = torch.cat([s_embedding, z_embedding], dim=-1)
@@ -306,7 +282,6 @@ class VForwardArchiConfig(BaseConfig):
     hidden_layers: int = 1
     embedding_layers: int = 2
     num_parallel: int = 2
-    input_filter: NNFilter = IdentityInputFilterConfig()
 
     def build(self, obs_space, z_dim: int, output_dim=None) -> torch.nn.Module:
         return VForwardMap(obs_space, z_dim, output_dim, self)
@@ -322,14 +297,8 @@ class VForwardMap(nn.Module):
     ) -> None:
         super().__init__()
 
-        self.input_filter = cfg.input_filter.build(obs_space)
-        filtered_space = self.input_filter.output_space
-
-        assert isinstance(filtered_space, gymnasium.spaces.Box), (
-            f"filtered_space must be a Box space, got {type(filtered_space)}. Did you forget to set input_filter?"
-        )
-        assert len(filtered_space.shape) == 1, "filtered_space must have a 1D shape"
-        obs_dim = filtered_space.shape[0]
+        assert len(obs_space.shape) == 1, "obs_space must have a 1D shape"
+        obs_dim = obs_space.shape[0]
         self.z_dim = z_dim
         self.num_parallel = cfg.num_parallel
         self.hidden_dim = cfg.hidden_dim
@@ -343,8 +312,7 @@ class VForwardMap(nn.Module):
         seq += [linear(cfg.hidden_dim, output_dim if output_dim else z_dim, cfg.num_parallel)]
         self.Fs = nn.Sequential(*seq)
 
-    def forward(self, obs: torch.Tensor | dict[str, torch.Tensor], z: torch.Tensor) -> torch.Tensor:
-        obs = self.input_filter(obs)
+    def forward(self, obs: torch.Tensor, z: torch.Tensor) -> torch.Tensor:
         if self.num_parallel > 1:
             obs = obs.expand(self.num_parallel, -1, -1)
             z = z.expand(self.num_parallel, -1, -1)

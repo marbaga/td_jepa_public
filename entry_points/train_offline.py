@@ -6,6 +6,7 @@
 import os
 
 os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["MUJOCO_GL"] = "egl"  # for headless rendering
 
 import torch
 
@@ -70,7 +71,7 @@ class TrainConfig(BaseConfig):
     seed: int = 0
     log_every_updates: int = 10_000
     num_train_steps: int = 3_000_000
-    checkpoint_every_steps: int = 100_000
+    checkpoint_every_steps: int = 250_000
 
     # WANDB
     use_wandb: bool = False
@@ -85,7 +86,7 @@ class TrainConfig(BaseConfig):
     # If you want to add more available evaluations, Update "Evaluations" type above
     evaluations: Dict[str, Evaluation] | List[Evaluation] = pydantic.Field(default_factory=lambda: [])
 
-    eval_every_steps: int = 100_000
+    eval_every_steps: int = 250_000
 
     tags: dict = pydantic.Field(default_factory=lambda: {})
 
@@ -127,8 +128,8 @@ class Workspace:
 
         sample_env, _ = cfg.env.build()
         self.obs_space = sample_env.observation_space
-        assert isinstance(self.obs_space, (gymnasium.spaces.Box, gymnasium.spaces.Dict)), (
-            "Only Box and Dict observation spaces are supported"
+        assert isinstance(self.obs_space, gymnasium.spaces.Box), (
+            "Only Box observation spaces are supported"
         )
 
         self.action_space = sample_env.action_space

@@ -18,42 +18,25 @@ from metamotivo.pytree_utils import tree_check_batch_size, tree_get_batch_size
 
 def load_transitions(
     episode_fns: tp.List[str],
-    obs_type: tp.Literal["state", "pixels", "state_pixels"] = "state",
+    obs_type: tp.Literal["state", "pixels"] = "state",
 ):
-    match obs_type:
-        case "state_pixels":
-            observation = {"state": [], "pixels": []}
-            next_observation = {"state": [], "pixels": []}
-        case "state":
-            observation = {"state": []}
-            next_observation = {"state": []}
-        case "pixels":
-            observation = {"pixels": []}
-            next_observation = {"pixels": []}
-        case _:
-            raise ValueError(f"Unknown observation type {obs_type}")
     storage = {
-        "observation": observation,
+        "observation": [],
         "action": [],
         "physics": [],
-        "next": {"observation": next_observation, "terminated": [], "physics": []},
+        "next": {"observation": [], "terminated": [], "physics": []},
     }
     for f in episode_fns:
         data = np.load(str(f))
         match obs_type:
             case "state":
-                storage["observation"]["state"].append(data["observation"][:-1].astype(np.float32))
-                storage["next"]["observation"]["state"].append(data["observation"][1:].astype(np.float32))
+                obs_key = "observation"
             case "pixels":
-                storage["observation"]["pixels"].append(data["pixels"][:-1])
-                storage["next"]["observation"]["pixels"].append(data["pixels"][1:])
-            case "state_pixels":
-                storage["observation"]["state"].append(data["observation"][:-1].astype(np.float32))
-                storage["next"]["observation"]["state"].append(data["observation"][1:].astype(np.float32))
-                storage["observation"]["pixels"].append(data["pixels"][:-1])
-                storage["next"]["observation"]["pixels"].append(data["pixels"][1:])
+                obs_key = "pixels"
             case _:
                 raise ValueError(f"Unknown observation type {obs_type}")
+        storage["observation"].append(data[obs_key][:-1].astype(np.float32))
+        storage["next"]["observation"].append(data[obs_key][1:].astype(np.float32))
         storage["action"].append(data["action"][1:].astype(np.float32))
         storage["next"]["terminated"].append(np.array(1 - data["discount"][1:], dtype=bool))
         storage["physics"].append(data["physics"][:-1])
@@ -71,22 +54,20 @@ def load_transitions(
 
 def load_trajectories(
     episode_fns: tp.List[str],
-    obs_type: tp.Literal["state", "pixels", "state_pixels"] = "state",
+    obs_type: tp.Literal["state", "pixels"] = "state",
 ):
     data = np.load(str(episode_fns[0]))
     # EXORL data only has fixed-length trajectories
     # in order to handle trajectories of varying length we would need to read all files here and compute the total number of transitions
     traj_len = data["observation"].shape[0]
     n = traj_len * len(episode_fns)
-    if obs_type == "state":
-        obs_storage = {"state": np.zeros((n, data["observation"].shape[1]), dtype=np.float32)}
-    elif obs_type == "pixels":
-        obs_storage = {"pixels": np.zeros((n, *data["pixels"].shape[1:]), dtype=data["pixels"].dtype)}
-    else:
-        obs_storage = {
-            "state": np.zeros((n, data["observation"].shape[1]), dtype=np.float32),
-            "pixels": np.zeros((n, *data["pixels"].shape[1:]), dtype=data["pixels"].dtype),
-        }
+    match obs_type:
+        case "state":
+            obs_storage = np.zeros((n, data["observation"].shape[1]), dtype=np.float32)
+        case "pixels":
+            obs_storage = np.zeros((n, *data["pixels"].shape[1:]), dtype=data["pixels"].dtype)
+        case _:
+            raise ValueError(f"Unknown observation type {obs_type}")
     storage = {
         "observation": obs_storage,
         "action": np.zeros((n, data["action"].shape[1]), dtype=np.float32),
@@ -102,12 +83,9 @@ def load_trajectories(
         assert n == traj_len, f"All trajectories must have the same lengths. Found {traj_len} and {n}"
         match obs_type:
             case "state":
-                storage["observation"]["state"][idx : idx + n] = data["observation"].astype(np.float32)
+                storage["observation"][idx : idx + n] = data["observation"].astype(np.float32)
             case "pixels":
-                storage["observation"]["pixels"][idx : idx + n] = data["pixels"]
-            case "state_pixels":
-                storage["observation"]["state"][idx : idx + n] = data["observation"].astype(np.float32)
-                storage["observation"]["pixels"][idx : idx + n] = data["pixels"]
+                storage["observation"][idx : idx + n] = data["pixels"]
             case _:
                 raise ValueError(f"Unknown observation type {obs_type}")
         act = np.concatenate([data["action"][1:].astype(np.float32), np.zeros((1, data["action"].shape[1]), dtype=np.float32)], axis=0)

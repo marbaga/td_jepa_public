@@ -16,5 +16,6 @@ class OGBenchDataConfig(BaseDataConfig):
     load_n_episodes: int = 1_000
 
     def build(self, buffer_device, batch_size, frame_stack, relabel_fn=None) -> tp.Dict:
-        path = Path(self.dataset_root) / f"{self.domain}/buffer"
+        domain = ("visual-" if self.obs_type == "pixels" else "") + self.domain
+        path = Path(self.dataset_root) / f"{domain}/buffer"
         return super().build_from_path(path, buffer_device, batch_size, frame_stack, relabel_fn)

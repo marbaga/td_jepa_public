@@ -9,7 +9,6 @@ import typing as tp
 import gymnasium
 import mujoco
 import numpy as np
-from gymnasium.wrappers import TimeAwareObservation
 
 from metamotivo.base import BaseConfig
 from metamotivo.envs.dmc_tasks import dmc
@@ -56,10 +55,7 @@ class DMCEnvConfig(BaseConfig):
     seed: int = 0
 
     # observation type
-    obs_type: tp.Literal["state", "pixels", "state_pixels"] = "state"
-
-    # wrappers
-    add_time: bool = False  # add time field to the dictionary
+    obs_type: tp.Literal["state", "pixels"] = "state"
 
     # vision based parameter
     camera_id: int | None = None
@@ -71,8 +67,6 @@ class DMCEnvConfig(BaseConfig):
         wrappers = []
         if self.obs_type == "pixels":
             wrappers.append(lambda env: PixelWrapper(env, self.frame_stack))
-        if self.add_time:
-            wrappers.append(lambda env: TimeAwareObservation(env, flatten=False))
         return create_dmc_env(
             domain=self.domain,
             task=self.task,

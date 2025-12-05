@@ -10,11 +10,8 @@ import tyro
 from metamotivo.envs.dmc_tasks import ALL_TASKS
 from metamotivo.misc.launcher_utils import all_combinations_of_nested_dicts_for_sweep, launch_trials, flatten
 
-
 BASE_CFG = {
     "num_train_steps": 3_000_000,
-    "eval_every_steps": 250_000,
-    "checkpoint_every_steps": 250_000,
     "data": {
         "name": "dmc",
         "domain": "walker",
@@ -32,13 +29,8 @@ BASE_CFG = {
         "model": {
             "device": "cuda",
             "obs_normalizer": {
-                "normalizers": {
-                    "state": {
-                        "name": "IdentityNormalizerConfig",
-                    }
-                }
+                "name": "IdentityNormalizerConfig",
             },
-            "actor_std": 0.2,
             "archi": {
                 "phi_predictor": {"name": "ForwardArchi", "hidden_dim": 1024, "hidden_layers": 1},
                 "psi_predictor": {"name": "ForwardArchi", "hidden_dim": 1024, "hidden_layers": 1},
@@ -47,13 +39,11 @@ BASE_CFG = {
                     "hidden_dim": 256,
                     "hidden_layers": 0,
                     "norm": True,
-                    "input_filter": {"name": "DictInputFilterConfig", "key": "state"},
                 },
                 "psi_mlp_encoder": {
                     "hidden_dim": 256,
                     "hidden_layers": 2,
                     "norm": True,
-                    "input_filter": {"name": "DictInputFilterConfig", "key": "state"},
                 },
                 "phi_dim": 256,
                 "psi_dim": 50,
@@ -63,17 +53,10 @@ BASE_CFG = {
         "train": {
             "batch_size": 1024,
             "discount": 0.98,
-            "lr_predictor": 1e-4,
-            "lr_phi": 1e-4,
-            "lr_psi": 1e-4,
-            "lr_actor": 1e-4,
             "phi_ortho_coef": 0.1,
             "psi_ortho_coef": 0.1,
-            "train_goal_ratio": 0.5,
             "encoder_target_tau": 0.001,
             "predictor_target_tau": 0.001,
-            "predictor_pessimism_penalty": 0.0,
-            "actor_pessimism_penalty": 0.0,
         },
     },
 }
@@ -132,8 +115,8 @@ class LaunchArgs:
     # wandb config
     use_wandb: bool = False
     wandb_gname: str | None = "td_jepa"
-    wandb_ename: str | None = "td_jepa_entity"
-    wandb_pname: str | None = "td_jepa_main"
+    wandb_ename: str | None = "td_jepa"
+    wandb_pname: str | None = "td_jepa"
     # specify to run sweeps
     sweep_config: str | None = None
     # instead of launching all experiments, only run the first one
@@ -165,15 +148,13 @@ def main(args: LaunchArgs):
         trial = flatten(trial)
         trial.update(flatten(
             {
-                "data": {
-                    "dataset_root": args.data_path,
-                },
                 "use_wandb": args.use_wandb,
                 "wandb_ename": args.wandb_ename,
                 "wandb_pname": args.wandb_pname,
                 "wandb_gname": args.wandb_gname,
                 "work_dir": f"{args.workdir_root}/{i}",
                 "data.domain": trial["env.domain"],
+                "env.task": ALL_TASKS[trial["env.domain"]][0],
                 "evaluations": [
                     {
                         "name": "dmc_reward_eval",
@@ -197,4 +178,7 @@ def main(args: LaunchArgs):
 if __name__ == "__main__":
     args = tyro.cli(LaunchArgs)
     main(args)
-    # uv run -m scripts.train.proprio.launch_td_jepa_dmc --data_path datasets --workdir_root test --sweep_config sweep_walker
+    # uv run -m scripts.train.proprio.launch_td_jepa_dmc --use_wandb --wandb_gname td_jepa_walker_proprio --data_path datasets --workdir_root results --sweep_config sweep_walker
+    # uv run -m scripts.train.proprio.launch_td_jepa_dmc --use_wandb --wandb_gname td_jepa_cheetah_proprio --data_path datasets --workdir_root results --sweep_config sweep_cheetah
+    # uv run -m scripts.train.proprio.launch_td_jepa_dmc --use_wandb --wandb_gname td_jepa_quadruped_proprio --data_path datasets --workdir_root results --sweep_config sweep_quadruped
+    # uv run -m scripts.train.proprio.launch_td_jepa_dmc --use_wandb --wandb_gname td_jepa_pointmass_proprio --data_path datasets --workdir_root results --sweep_config sweep_pointmass

@@ -12,7 +12,6 @@ import numpy as np
 import pydantic
 import torch
 import torch.nn.functional as F
-from torch.utils._pytree import tree_map
 
 from metamotivo.base import BaseConfig
 from metamotivo.base_model import BaseModel, BaseModelConfig
@@ -25,7 +24,7 @@ from ...nn_models import (
     SimpleActorArchiConfig,
     eval_mode,
 )
-from ...normalizers import ObsNormalizerConfig
+from ...normalizers import AVAILABLE_NORMALIZERS, IdentityNormalizerConfig
 from ...pixel_models import (
     AugmentatorArchiConfig,
     DreamerEncoderArchiConfig,
@@ -60,7 +59,9 @@ class TDJEPAModelConfig(BaseModelConfig):
     name: tp.Literal["TDJEPAModel"] = "TDJEPAModel"
 
     archi: TDJEPAModelArchiConfig = TDJEPAModelArchiConfig()
-    obs_normalizer: ObsNormalizerConfig = ObsNormalizerConfig()
+    obs_normalizer: AVAILABLE_NORMALIZERS = pydantic.Field(
+        IdentityNormalizerConfig(), discriminator="name"
+    )
     actor_std: float = 0.2
     # if True, the actor takes as input the output of phi_mlp_encoder(phi_rgb_encoder(obs))
     # if False, the actor takes as input the output of phi_rgb_encoder(obs)
@@ -137,15 +138,15 @@ class TDJEPAModel(BaseModel):
         return self._psi_mlp_encoder(self._psi_rgb_encoder(self._normalize(obs)))
 
     @torch.no_grad()
-    def phi_predictor(self, obs: torch.Tensor | dict[str, torch.Tensor], z: torch.Tensor, action: torch.Tensor):
+    def phi_predictor(self, obs: torch.Tensor, z: torch.Tensor, action: torch.Tensor):
         return self._phi_predictor(self.phi(obs), z, action)
 
     @torch.no_grad()
-    def psi_predictor(self, obs: torch.Tensor | dict[str, torch.Tensor], z: torch.Tensor, action: torch.Tensor):
+    def psi_predictor(self, obs: torch.Tensor, z: torch.Tensor, action: torch.Tensor):
         return self._psi_predictor(self.psi(obs), z, action)
 
     @torch.no_grad()
-    def actor(self, obs: torch.Tensor | dict[str, torch.Tensor], z: torch.Tensor, std: float):
+    def actor(self, obs: torch.Tensor, z: torch.Tensor, std: float):
         actor_in = self.phi(obs) if self.cfg.actor_use_full_encoder else self._phi_rgb_encoder(self._normalize(obs))
         return self._actor(actor_in, z, std)
 
@@ -159,15 +160,15 @@ class TDJEPAModel(BaseModel):
         return z
 
     def act(
-        self, obs: torch.Tensor | dict[str, torch.Tensor], z: torch.Tensor | dict[str, torch.Tensor], mean: bool = True
+        self, obs: torch.Tensor, z: torch.Tensor, mean: bool = True
     ) -> torch.Tensor:
         dist = self.actor(obs, z, self.cfg.actor_std)
         if mean:
             return dist.mean
         return dist.sample()
 
-    def reward_inference(self, next_obs: torch.Tensor | dict[str, torch.Tensor], reward: torch.Tensor) -> torch.Tensor:
-        next_obs = tree_map(lambda x: x.to(self.device), next_obs)
+    def reward_inference(self, next_obs: torch.Tensor, reward: torch.Tensor) -> torch.Tensor:
+        next_obs = next_obs.to(self.device)
         reward = reward.to(self.device)
         z = torch.linalg.lstsq(self.psi(next_obs), reward).solution.T
         return self.project_z(z)

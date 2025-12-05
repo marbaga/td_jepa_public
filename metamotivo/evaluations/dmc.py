@@ -10,7 +10,6 @@ import numpy as np
 import pydantic
 import torch
 import tqdm
-from torch.utils._pytree import tree_map
 
 from metamotivo.base import BaseConfig
 from metamotivo.envs.dmc import DMCEnvConfig
@@ -108,7 +107,7 @@ class DMCRewardEvaluation:
             "relabel_reward#num_samples": rewards.size,
         }
         z = agent_or_model._model.reward_inference(
-            next_obs=tree_map(lambda x: x.to(agent_or_model.device), batch["next"]["observation"]),
+            next_obs=batch["next"]["observation"].to(agent_or_model.device),
             reward=torch.tensor(rewards, dtype=torch.float32, device=agent_or_model.device),
         )
         return z.reshape(1, -1), relabel_metrics

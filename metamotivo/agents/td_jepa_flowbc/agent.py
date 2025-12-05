@@ -103,7 +103,7 @@ class TDJEPAFlowBCAgent(TDJEPAAgent):
         }
         return metrics
 
-    def compute_flow_actions(self, flow_in: torch.Tensor | dict[str, torch.Tensor] | Dict, noises: torch.Tensor) -> torch.Tensor:
+    def compute_flow_actions(self, flow_in: torch.Tensor, noises: torch.Tensor) -> torch.Tensor:
         actions = noises
         for i in range(self.cfg.train.flow_steps):
             t = torch.ones((noises.shape[0], 1), device=noises.device) * i / self.cfg.train.flow_steps

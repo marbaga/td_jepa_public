@@ -11,7 +11,6 @@ from typing import Dict, Literal, Tuple
 import safetensors
 import torch
 import torch.nn.functional as F
-from torch.utils._pytree import tree_map
 
 from metamotivo.base import BaseConfig
 from metamotivo.envs.utils.gym_spaces import json_to_space, space_to_json
@@ -151,16 +150,16 @@ class TDJEPAAgent:
             self.augment_image = torch.compile(self.augment_image, mode=mode)
             self.encode_image = torch.compile(self.encode_image, mode=mode)
 
-    def act(self, obs: torch.Tensor | dict[str, torch.Tensor], z: torch.Tensor, mean: bool = True) -> torch.Tensor:
+    def act(self, obs: torch.Tensor, z: torch.Tensor, mean: bool = True) -> torch.Tensor:
         return self._model.act(obs, z, mean)
 
     @torch.no_grad()
-    def sample_mixed_z(self, train_goal: torch.Tensor | dict[str, torch.Tensor] | None = None, *args, **kwargs):
+    def sample_mixed_z(self, train_goal: torch.Tensor | None = None, *args, **kwargs):
         # samples a batch from the z distribution used to update the networks
         z = self._model.sample_z(self.cfg.train.batch_size, device=self.device)
         if train_goal is not None:
             perm = torch.randperm(self.cfg.train.batch_size, device=self.device)
-            train_goal = tree_map(lambda x: x[perm], train_goal)
+            train_goal = train_goal[perm]
             # NOTE: this assumes that train_goal has already been passed through the psi_rgb_encoder and obs_normalizer
             goals = self._model._phi_mlp_encoder(train_goal) if self.cfg.model.symmetric else self._model._psi_mlp_encoder(train_goal)
             if self.cfg.train.scale_train_goals:
@@ -193,9 +192,9 @@ class TDJEPAAgent:
         batch = replay_buffer["train"].sample(self.cfg.train.batch_size)
 
         obs, action, next_obs, terminated = (
-            tree_map(lambda x: x.to(self.device), batch["observation"]),
+            batch['observation'].to(self.device),
             batch["action"].to(self.device),
-            tree_map(lambda x: x.to(self.device), batch["next"]["observation"]),
+            batch["next"]["observation"].to(self.device),
             batch["next"]["terminated"].to(self.device),
         )
         discount = self.cfg.train.discount * ~terminated
@@ -237,7 +236,7 @@ class TDJEPAAgent:
 
         metrics.update(
             self.update_actor(
-                phi_obs=tree_map(lambda x: x.detach(), phi_obs),
+                phi_obs=phi_obs.detach(),
                 action=action,
                 z=z,
             )
@@ -272,12 +271,12 @@ class TDJEPAAgent:
 
     def update_tdjepa(
         self,
-        phi_obs: torch.Tensor | dict[str, torch.Tensor],
-        psi_obs: torch.Tensor | dict[str, torch.Tensor],
+        phi_obs: torch.Tensor,
+        psi_obs: torch.Tensor,
         action: torch.Tensor,
         discount: torch.Tensor,
-        phi_next_obs: torch.Tensor | dict[str, torch.Tensor],
-        psi_next_obs: torch.Tensor | dict[str, torch.Tensor],
+        phi_next_obs: torch.Tensor,
+        psi_next_obs: torch.Tensor,
         z: torch.Tensor,
     ) -> Dict[str, torch.Tensor]:
         if self.cfg.model.symmetric:
@@ -288,12 +287,12 @@ class TDJEPAAgent:
 
     def update_tdjepa_asym(
         self,
-        phi_obs: torch.Tensor | dict[str, torch.Tensor],
-        psi_obs: torch.Tensor | dict[str, torch.Tensor],
+        phi_obs: torch.Tensor,
+        psi_obs: torch.Tensor,
         action: torch.Tensor,
         discount: torch.Tensor,
-        phi_next_obs: torch.Tensor | dict[str, torch.Tensor],
-        psi_next_obs: torch.Tensor | dict[str, torch.Tensor],
+        phi_next_obs: torch.Tensor,
+        psi_next_obs: torch.Tensor,
         z: torch.Tensor,
     ) -> Dict[str, torch.Tensor]:
         with torch.no_grad():
@@ -369,10 +368,10 @@ class TDJEPAAgent:
 
     def update_tdjepa_sym(
         self,
-        phi_obs: torch.Tensor | dict[str, torch.Tensor],
+        phi_obs: torch.Tensor,
         action: torch.Tensor,
         discount: torch.Tensor,
-        phi_next_obs: torch.Tensor | dict[str, torch.Tensor],
+        phi_next_obs: torch.Tensor,
         z: torch.Tensor,
     ) -> Dict[str, torch.Tensor]:
         with torch.no_grad():

@@ -12,7 +12,7 @@ from ogbench.utils import make_env_and_datasets
 
 from metamotivo.base import BaseConfig
 
-from .utils.wrappers import DictObsWrapper, PixelWrapper
+from .utils.wrappers import PixelWrapper
 
 CUBE_DOMAINS = ["cube-single-play-v0", "cube-double-play-v0"]
 PUZZLE_DOMAINS = ["puzzle-3x3-play-v0"]
@@ -91,9 +91,6 @@ class OGBenchEnvConfig(BaseConfig):
     # state_pixels is not supported atm
     obs_type: tp.Literal["state", "pixels"] = "state"
 
-    # wrappers
-    add_time: bool = False  # add time field to the dictionary
-
     # vision based parameter
     camera_id: int | None = None
     render_height: int = 64
@@ -101,11 +98,9 @@ class OGBenchEnvConfig(BaseConfig):
     frame_stack: int = 1
 
     def build(self) -> tp.Tuple[gymnasium.Env, tp.Any]:
-        wrappers = [lambda env: DictObsWrapper(env, self.obs_type)]
+        wrappers = []
         if self.obs_type == "pixels":
             wrappers.append(lambda env: PixelWrapper(env, self.frame_stack))
-        if self.add_time:
-            wrappers.append(lambda env: gymnasium.wrappers.TimeAwareObservation(env, flatten=False))
         return create_ogbench_env(
             task=self.task,
             seed=self.seed,
