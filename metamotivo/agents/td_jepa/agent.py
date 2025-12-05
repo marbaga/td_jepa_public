@@ -146,7 +146,8 @@ class TDJEPAAgent:
             self.update_tdjepa_asym = torch.compile(self.update_tdjepa_asym, mode=mode)
             self.update_tdjepa_sym = torch.compile(self.update_tdjepa_sym, mode=mode)
             self.update_actor = torch.compile(self.update_actor, mode=mode)
-            self.sample_mixed_z = torch.compile(self.sample_mixed_z, mode=mode, fullgraph=True)
+            # feel free to re-enable compilation if https://github.com/pytorch/pytorch/issues/166604 is resolved 
+            # self.sample_mixed_z = torch.compile(self.sample_mixed_z, mode=mode, fullgraph=True)
             self.augment_image = torch.compile(self.augment_image, mode=mode)
             self.encode_image = torch.compile(self.encode_image, mode=mode)
 
