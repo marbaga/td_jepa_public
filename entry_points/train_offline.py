@@ -34,8 +34,7 @@ from metamotivo.envs.ogbench import OGBenchEnvConfig
 from metamotivo.evaluations.dmc import DMCRewardEvalConfig
 from metamotivo.evaluations.ogbench import OGBenchRewardEvalConfig
 from metamotivo.misc.loggers import CSVLogger
-from metamotivo.agents.td_jepa.agent import TDJEPAAgentConfig
-from metamotivo.agents.td_jepa_flowbc.agent import TDJEPAFlowBCAgentConfig
+from metamotivo.agents import Agent
 from metamotivo.utils import EveryNStepsChecker, get_local_workdir, set_seed_everywhere
 
 TRAIN_LOG_FILENAME = "train_log.txt"
@@ -43,10 +42,6 @@ TRAIN_LOG_FILENAME = "train_log.txt"
 CHECKPOINT_DIR_NAME = "checkpoint"
 
 
-Agent = (
-    TDJEPAAgentConfig
-    | TDJEPAFlowBCAgentConfig
-)
 Env = DMCEnvConfig | OGBenchEnvConfig
 DataLoading = DMCDataConfig | OGBenchDataConfig
 

@@ -11,7 +11,6 @@ from typing import Dict, Literal, Tuple
 import safetensors
 import torch
 import torch.nn.functional as F
-from torch.utils._pytree import tree_map
 
 from metamotivo.base import BaseConfig
 
@@ -27,10 +26,10 @@ class SFAgentTrainConfig(BaseConfig):
     sf_target_tau: float = 0.01
     features_target_tau: float = 0.005
     train_goal_ratio: float = 0.5
-    sf_pessimism_penalty: float = 0.5
-    actor_pessimism_penalty: float = 0.5
+    sf_pessimism_penalty: float = 0.0
+    actor_pessimism_penalty: float = 0.0
     stddev_clip: float = 0.3
-    q_loss: bool = True
+    q_loss: bool = False
     batch_size: int = 1024
     discount: float = 0.99
     prob_random_goal: float = 0.0
@@ -113,14 +112,15 @@ class SFAgent:
         if self.cfg.compile:
             mode = "reduce-overhead" if not self.cfg.cudagraphs else None
             print(f"compiling with mode '{mode}'")
-            self.sample_mixed_z = torch.compile(self.sample_mixed_z, mode=mode)
+            # feel free to re-enable compilation if https://github.com/pytorch/pytorch/issues/166604 is resolved
+            # self.sample_mixed_z = torch.compile(self.sample_mixed_z, mode=mode)
+            # self.mix_goals = torch.compile(self.mix_goals, mode=mode)
             self.sf_loss = torch.compile(self.sf_loss, mode=mode)
             self.update_actor = torch.compile(self.update_actor, mode=mode)
             self.feature_loss = torch.compile(self.feature_loss, mode=mode)
             self.aug = torch.compile(self.aug, mode=mode)
             self.enc_for_features = torch.compile(self.enc_for_features, mode=mode)
             self.enc_for_sf = torch.compile(self.enc_for_sf, mode=mode)
-            self.mix_goals = torch.compile(self.mix_goals, mode=mode)
 
     def act(self, obs: torch.Tensor, z: torch.Tensor, mean: bool = True) -> torch.Tensor:
         return self._model.act(obs, z, mean)
@@ -186,11 +186,9 @@ class SFAgent:
         return goals
 
     def mix_goals(self, next_obs, future_obs):
-        if isinstance(next_obs, dict):
-            return {k: self._mix_goals(next_obs[k], future_obs[k]) for k in next_obs.keys()}
-        return self._mix_goals(self, next_obs, future_obs)
+        return self._mix_goals(next_obs, future_obs)
 
-    def sample_action_from_norm_obs(self, obs: torch.Tensor | dict[str, torch.Tensor], z: torch.Tensor) -> torch.Tensor:
+    def sample_action_from_norm_obs(self, obs: torch.Tensor, z: torch.Tensor) -> torch.Tensor:
         dist = self._model._actor(obs, z, self._model.cfg.actor_std)
         action = dist.sample(clip=self.cfg.train.stddev_clip)
         return action
@@ -198,13 +196,13 @@ class SFAgent:
     def update(self, replay_buffer, step: int) -> Dict[str, torch.Tensor]:
         batch = replay_buffer["train"].sample(self.cfg.train.batch_size)
         obs, action, next_obs, terminated = (
-            tree_map(lambda x: x.to(self.device), batch["observation"]),
+            batch["observation"].to(self.device),
             batch["action"].to(self.device),
-            tree_map(lambda x: x.to(self.device), batch["next"]["observation"]),
+            batch["next"]["observation"].to(self.device),
             batch["next"]["terminated"].to(self.device),
         )
         future_obs = batch.get("future_observation", next_obs)
-        future_obs = tree_map(lambda x: x.to(self.device), future_obs)
+        future_obs = future_obs.to(self.device)
         discount = self.cfg.train.discount * ~terminated
 
         self._model._obs_normalizer(obs)
@@ -230,8 +228,7 @@ class SFAgent:
         )
 
         # keep track of features statistics (this is needed for centering when enabled)
-        # TODO only hilp uses this --> do we really need it?
-        self._model._update_features_stats(tree_map(lambda x: x.detach(), obs_phi))
+        self._model._update_features_stats(obs_phi.detach())
 
         # when actor_encode_obs=True, the SFs and actor take as input the features' output, so we overwrite obs and next_obs
         # NOTE: self._model.features() returns detached tensors as required here
@@ -248,7 +245,7 @@ class SFAgent:
         self.optimizers_step()
 
         # optimize actor
-        actor_metrics = self.update_actor(tree_map(lambda x: x.detach(), obs_sf), action, z)
+        actor_metrics = self.update_actor(obs_sf.detach(), action, z)
 
         self.update_target_networks()
 
@@ -316,7 +313,7 @@ class SFAgent:
 
     def update_actor(
         self,
-        obs: torch.Tensor | dict[str, torch.Tensor],
+        obs: torch.Tensor,
         action: torch.Tensor,
         z: torch.Tensor,
     ) -> Dict[str, torch.Tensor]:

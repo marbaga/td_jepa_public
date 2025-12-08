@@ -9,7 +9,6 @@ import torch
 from torch import nn
 
 from ...base import BaseConfig
-from ...nn_filters import IdentityInputFilterConfig, NNFilter
 from ...nn_models import linear
 
 
@@ -17,7 +16,6 @@ class NoiseConditionedActorArchiConfig(BaseConfig):
     hidden_dim: int = 1024
     model: str = "simple"  # not used at the moment
     hidden_layers: int = 2
-    input_filter: NNFilter = IdentityInputFilterConfig()
 
     def build(self, obs_space, action_dim):
         return SimpleNoiseConditionedActor(obs_space, action_dim, cfg=self)
@@ -30,12 +28,8 @@ class SimpleNoiseConditionedActor(nn.Module):
         super().__init__()
         self.cfg: NoiseConditionedActorArchiConfig = cfg
 
-        self.input_filter = cfg.input_filter.build(obs_space)
-        filtered_space = self.input_filter.output_space
-
-        assert len(filtered_space.shape) == 1, "obs_space must be 1D box"
-        obs_dim = filtered_space.shape[0]
-
+        assert len(obs_space.shape) == 1, "obs_space must be 1D box"
+        obs_dim = obs_space.shape[0]
         seq = [linear(obs_dim + action_dim, cfg.hidden_dim), nn.ReLU()]
         for _ in range(cfg.hidden_layers - 1):
             seq += [linear(cfg.hidden_dim, cfg.hidden_dim), nn.ReLU()]
@@ -43,7 +37,6 @@ class SimpleNoiseConditionedActor(nn.Module):
         self.policy = nn.Sequential(*seq)
 
     def forward(self, obs, noise):
-        obs = self.input_filter(obs)
         embedding = torch.cat([obs, noise], dim=-1)
         actions = torch.tanh(self.policy(embedding))
         return actions
@@ -54,7 +47,6 @@ class SimpleVectorFieldArchiConfig(BaseConfig):
     model: tp.Literal["simple"] = "simple"
     hidden_dim: int = 1024
     hidden_layers: int = 1
-    input_filter: NNFilter = IdentityInputFilterConfig()
 
     def build(self, obs_space, action_dim: int) -> "VectorField":
         return VectorField(obs_space, action_dim, self)
@@ -65,11 +57,8 @@ class VectorField(nn.Module):
         super().__init__()
         self.cfg: SimpleVectorFieldArchiConfig = cfg
 
-        self.input_filter = cfg.input_filter.build(obs_space)
-        filtered_space = self.input_filter.output_space
-
-        assert len(filtered_space.shape) == 1, "obs_space must have a 1D shape"
-        obs_dim = filtered_space.shape[0]
+        assert len(obs_space.shape) == 1, "obs_space must have a 1D shape"
+        obs_dim = obs_space.shape[0]
         # plus 1 is for time
         seq = [linear(obs_dim + action_dim + 1, cfg.hidden_dim), nn.GELU()]
         for _ in range(cfg.hidden_layers - 1):
@@ -77,7 +66,6 @@ class VectorField(nn.Module):
         seq += [linear(cfg.hidden_dim, action_dim)]
         self.net = nn.Sequential(*seq)
 
-    def forward(self, obs: torch.Tensor | dict[str, torch.Tensor], action: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
-        obs = self.input_filter(obs)
+    def forward(self, obs: torch.Tensor, action: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
         embedding = torch.cat([obs, action, t], dim=-1)
         return self.net(embedding)

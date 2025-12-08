@@ -7,7 +7,6 @@ from typing import Dict, Literal
 
 import torch
 
-from ...pytree_utils import tree_get_batch_size
 from ..td3.agent import TD3Agent, TD3AgentConfig, TD3AgentTrainConfig
 from .model import TD3FlowBCModelConfig
 
@@ -44,14 +43,14 @@ class TD3FlowBCAgent(TD3Agent):
             capturable=self.cfg.cudagraphs and not self.cfg.compile,
         )
 
-    def sample_action_from_norm_obs(self, obs: torch.Tensor | dict[str, torch.Tensor]) -> torch.Tensor:
-        noises = torch.randn((tree_get_batch_size(obs), self.action_dim), device=self.device, dtype=torch.float32)
+    def sample_action_from_norm_obs(self, obs: torch.Tensor) -> torch.Tensor:
+        noises = torch.randn((obs.shape[0], self.action_dim), device=self.device, dtype=torch.float32)
         action = self._model._actor(obs, noises)
         return action
 
     def update_actor(
         self,
-        obs: torch.Tensor | dict[str, torch.Tensor],
+        obs: torch.Tensor,
         action: torch.Tensor,
     ) -> Dict[str, torch.Tensor]:
         x_1 = action
@@ -96,7 +95,7 @@ class TD3FlowBCAgent(TD3Agent):
         }
         return metrics
 
-    def compute_flow_actions(self, obs: torch.Tensor | dict[str, torch.Tensor], noises: torch.Tensor) -> torch.Tensor:
+    def compute_flow_actions(self, obs: torch.Tensor, noises: torch.Tensor) -> torch.Tensor:
         actions = noises
         for i in range(self.cfg.train.flow_steps):
             t = torch.ones((noises.shape[0], 1), device=noises.device) * i / self.cfg.train.flow_steps

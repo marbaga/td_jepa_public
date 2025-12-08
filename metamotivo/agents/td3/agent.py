@@ -11,7 +11,6 @@ from typing import Dict, Literal, Tuple
 import safetensors
 import torch
 import torch.nn.functional as F
-from torch.utils._pytree import tree_map
 
 from metamotivo.base import BaseConfig
 from metamotivo.envs.utils.gym_spaces import json_to_space, space_to_json
@@ -24,7 +23,7 @@ class TD3AgentTrainConfig(BaseConfig):
     lr: float = 1e-4
     critic_target_tau: float = 0.005
     stddev_clip: float = 0.3
-    pessimism_penalty: float = 0.5
+    pessimism_penalty: float = 0.0
     batch_size: int = 1024
     discount: float = 0.98
     bc_coeff: float = 0.0
@@ -94,8 +93,8 @@ class TD3Agent:
         if self.cfg.compile:
             mode = "reduce-overhead" if not self.cfg.cudagraphs else None
             print(f"compiling with mode '{mode}'")
-            self.update_critic = torch.compile(self.update_critic, mode=mode)  # use fullgraph=True to debug for graph breaks
-            self.update_actor = torch.compile(self.update_actor, mode=mode)  # use fullgraph=True to debug for graph breaks
+            self.update_critic = torch.compile(self.update_critic, mode=mode)
+            self.update_actor = torch.compile(self.update_actor, mode=mode)
 
         print(f"cudagraphs {self.cfg.cudagraphs}")
         if self.cfg.cudagraphs:
@@ -104,16 +103,8 @@ class TD3Agent:
             self.update_critic = CudaGraphModule(self.update_critic, warmup=5)
             self.update_actor = CudaGraphModule(self.update_actor, warmup=5)
 
-    def maybe_update_rollout_context(
-        self,
-        z: torch.Tensor | None,
-        step_count: torch.Tensor,
-        replay_buffer: None = None,
-    ) -> None:
-        return None
-
-    def act(self, obs: torch.Tensor | dict[str, torch.Tensor], z: None = None, mean: bool = True) -> torch.Tensor:
-        # TODO TD3 just ignores the context z for now, but function signature makes it sound like it should be used...
+    def act(self, obs: torch.Tensor, z: None = None, mean: bool = True) -> torch.Tensor:
+        # TD3 just ignores the context z
         return self._model.act(obs, z=z, mean=mean)
 
     @torch.no_grad()
@@ -135,9 +126,9 @@ class TD3Agent:
         batch = replay_buffer["train"].sample(self.cfg.train.batch_size)
 
         obs, action, next_obs, terminated, reward = (
-            tree_map(lambda x: x.to(self.device), batch["observation"]),
+            batch["observation"].to(self.device),
             batch["action"].to(self.device),
-            tree_map(lambda x: x.to(self.device), batch["next"]["observation"]),
+            batch["next"]["observation"].to(self.device),
             batch["next"]["terminated"].to(self.device),
             batch["reward"].to(self.device),
         )
@@ -157,7 +148,7 @@ class TD3Agent:
         obs, next_obs = self.enc(obs, next_obs)
 
         metrics = self.update_critic(obs=obs, action=action, reward=reward, discount=discount, next_obs=next_obs)
-        metrics.update(self.update_actor(tree_map(lambda x: x.detach(), obs), action))
+        metrics.update(self.update_actor(obs.detach(), action))
 
         with torch.no_grad():
             _soft_update_params(
@@ -170,11 +161,11 @@ class TD3Agent:
 
     def update_critic(
         self,
-        obs: torch.Tensor | dict[str, torch.Tensor],
+        obs: torch.Tensor,
         action: torch.Tensor,
         reward: torch.Tensor,
         discount: torch.Tensor,
-        next_obs: torch.Tensor | dict[str, torch.Tensor],
+        next_obs: torch.Tensor,
     ) -> Dict[str, torch.Tensor]:
         # compute target critic
         with torch.no_grad():
@@ -201,7 +192,7 @@ class TD3Agent:
 
         return metrics
 
-    def update_actor(self, obs: torch.Tensor | dict[str, torch.Tensor], action: torch.Tensor) -> Dict[str, torch.Tensor]:
+    def update_actor(self, obs: torch.Tensor, action: torch.Tensor) -> Dict[str, torch.Tensor]:
         # compute actor loss
         dist = self._model._actor(obs, self._model.cfg.actor_std)
         actor_action = dist.sample()
@@ -226,7 +217,7 @@ class TD3Agent:
 
         return metrics
 
-    def sample_action_from_norm_obs(self, obs: torch.Tensor | dict[str, torch.Tensor]) -> torch.Tensor:
+    def sample_action_from_norm_obs(self, obs: torch.Tensor) -> torch.Tensor:
         dist = self._model._actor(obs, self._model.cfg.actor_std)
         next_action = dist.sample(clip=self.cfg.train.stddev_clip)
         return next_action

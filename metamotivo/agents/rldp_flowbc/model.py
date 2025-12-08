@@ -27,14 +27,12 @@ class RLDPFlowBCModelArchiConfig(RLDPModelArchiConfig):
 class RLDPFlowBCModelConfig(RLDPModelConfig):
     name: tp.Literal["RLDPFlowBCModel"] = "RLDPFlowBCModel"
     archi: RLDPFlowBCModelArchiConfig = RLDPFlowBCModelArchiConfig()
-    # TODO(team): actor_std is not used, avoid extending RLDPModelConfig?
 
     @property
     def object_class(self):
         return RLDPFlowBCModel
 
 
-# TODO: inherit from FBFlowBCModel instead
 class RLDPFlowBCModel(RLDPModel):
     def __init__(self, obs_space, action_dim, cfg: RLDPFlowBCModelConfig):
         super().__init__(obs_space, action_dim, cfg)
@@ -54,7 +52,7 @@ class RLDPFlowBCModel(RLDPModel):
         self.to(self.device)
 
     @torch.no_grad()
-    def actor(self, obs: torch.Tensor | dict[str, torch.Tensor], z: torch.Tensor, **kwargs) -> torch.Tensor:
+    def actor(self, obs: torch.Tensor, z: torch.Tensor, **kwargs) -> torch.Tensor:
         with autocast(device_type=self.device, dtype=self.amp_dtype, enabled=self.cfg.amp):
             obs = self._fw_encoder(self._normalize(obs))
             obs = self._left_encoder(obs) if self.cfg.actor_encode_obs else obs
@@ -62,7 +60,7 @@ class RLDPFlowBCModel(RLDPModel):
             actions = self._actor(obs, z, noises)
         return actions
 
-    def act(self, obs: torch.Tensor | dict[str, torch.Tensor], z: torch.Tensor, mean: bool = True) -> torch.Tensor:
+    def act(self, obs: torch.Tensor, z: torch.Tensor, mean: bool = True) -> torch.Tensor:
         del mean  # not used
         return self.actor(obs, z)
 

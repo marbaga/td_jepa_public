@@ -7,7 +7,6 @@ from typing import Dict, Literal
 
 import torch
 import torch.nn.functional as F
-from torch.utils._pytree import tree_map
 
 from ...nn_models import _soft_update_params, eval_mode
 from ..sf.agent import SFAgent, SFAgentConfig, SFAgentTrainConfig
@@ -16,8 +15,6 @@ from .model import ICVFModelConfig
 
 class ICVFAgentTrainConfig(SFAgentTrainConfig):
     expectile: float = 0.9
-    sf_stop_grad: bool = False
-    icvf_stop_grad: bool = False
     prob_same_goal: float = 0.5
 
 
@@ -45,13 +42,13 @@ class ICVFAgent(SFAgent):
 
         left_params = list(self._model._left_encoder.parameters()) + list(self._model._sf_encoder.parameters())
         self.sf_optimizer = torch.optim.Adam(
-            list(self._model._sf.parameters()) + (left_params if not self.cfg.train.sf_stop_grad else []),
+            list(self._model._sf.parameters()) + left_params,
             lr=self.cfg.train.lr_sf,
             capturable=self.cfg.cudagraphs and not self.cfg.compile,
             weight_decay=self.cfg.train.weight_decay,
         )
         self.t_optimizer = torch.optim.Adam(
-            list(self._model._t.parameters()) + (left_params if not self.cfg.train.icvf_stop_grad else []),
+            list(self._model._t.parameters()) + left_params,
             lr=self.cfg.train.lr_features,
             capturable=self.cfg.cudagraphs and not self.cfg.compile,
             weight_decay=self.cfg.train.weight_decay,
@@ -71,8 +68,7 @@ class ICVFAgent(SFAgent):
             phi = self._model._left_encoder
             t = self._model._t
             psi = self._model._features
-        phi_obs = phi(obs) if not self.cfg.train.icvf_stop_grad else phi(obs).detach()
-        v = (t(phi_obs, psi(desired_goals)) * psi(goals)).sum(-1, keepdims=True)
+        v = (t(phi(obs), psi(desired_goals)) * psi(goals)).sum(-1, keepdims=True)
         return v.detach() if is_target else v
 
     def expectile_loss(self, adv, diff, expectile=0.7):
@@ -88,8 +84,8 @@ class ICVFAgent(SFAgent):
         return obs, next_obs, future_obs, desired_obs
 
     def _reward(self, obs, goals):
-        obs = tree_map(lambda x: x.reshape(x.shape[0], -1), obs)
-        goals = tree_map(lambda x: x.reshape(x.shape[0], -1), goals)
+        obs = obs.reshape(obs.shape[0], -1)
+        goals = goals.reshape(goals.shape[0], -1)
         if isinstance(obs, dict):
             obs = torch.cat([v for v in obs.values()], dim=-1)
             goals = torch.cat([v for v in goals.values()], dim=-1)
@@ -103,9 +99,7 @@ class ICVFAgent(SFAgent):
         return torch.where(mask, desired_obs, future_obs)
 
     def same_goals(self, desired_obs, future_obs):
-        if isinstance(future_obs, dict):
-            return {k: self._same_goals(desired_obs[k], future_obs[k]) for k in desired_obs.keys()}
-        return self._same_goals(self, desired_obs, future_obs)
+        return self._same_goals(desired_obs, future_obs)
 
     def aug(self, obs, next_obs, future_obs, desired_obs):
         obs, next_obs, future_obs = super().aug(obs, next_obs, future_obs)
@@ -116,13 +110,13 @@ class ICVFAgent(SFAgent):
     def update(self, replay_buffer, step: int) -> Dict[str, torch.Tensor]:
         batch = replay_buffer["train"].sample(self.cfg.train.batch_size)
         obs, action, next_obs, terminated = (
-            tree_map(lambda x: x.to(self.device), batch["observation"]),
+            batch['observation'].to(self.device),
             batch["action"].to(self.device),
-            tree_map(lambda x: x.to(self.device), batch["next"]["observation"]),
+            batch["next"]["observation"].to(self.device),
             batch["next"]["terminated"].to(self.device),
         )
         future_obs = batch.get("future_observation", next_obs)
-        future_obs = tree_map(lambda x: x.to(self.device), future_obs)
+        future_obs = future_obs.to(self.device)
         discount = self.cfg.train.discount * ~terminated
 
         self._model._obs_normalizer(obs)
@@ -135,7 +129,7 @@ class ICVFAgent(SFAgent):
             )
 
         perm = torch.randperm(self.cfg.train.batch_size, device=self.device)
-        desired_obs = tree_map(lambda x: x[perm], future_obs)
+        desired_obs = future_obs[perm]
 
         torch.compiler.cudagraph_mark_step_begin()
 
@@ -166,8 +160,7 @@ class ICVFAgent(SFAgent):
         )
 
         # keep track of features statistics (this is needed for centering when enabled)
-        # TODO only hilp uses this --> do we really need it?
-        self._model._update_features_stats(tree_map(lambda x: x.detach(), obs_phi))
+        self._model._update_features_stats(obs_phi.detach())
 
         # when actor_encode_obs=True, the SFs and actor take as input the features' output, so we overwrite obs and next_obs
         # NOTE: self._model.features() returns detached tensors as required here
@@ -183,7 +176,7 @@ class ICVFAgent(SFAgent):
         self.optimizers_step()
 
         # optimize actor
-        actor_metrics = self.update_actor(tree_map(lambda x: x.detach(), obs_sf), action, z)
+        actor_metrics = self.update_actor(obs_sf.detach(), action, z)
 
         self.update_target_networks()
 
@@ -242,8 +235,6 @@ class ICVFAgent(SFAgent):
         z: torch.Tensor,
     ) -> Dict[str, torch.Tensor]:
         left_enc = self._model._left_encoder(obs)  # batch x L_dim
-        if self.cfg.train.sf_stop_grad:
-            left_enc = left_enc.detach()
         SFs = self._model._sf(left_enc, z, action)  # num_parallel x batch x z_dim
 
         with torch.no_grad():

@@ -12,7 +12,6 @@ import pydantic
 import torch
 import torch.nn.functional as F
 from torch.amp import autocast
-from torch.utils._pytree import tree_map
 
 from ...base import BaseConfig
 from ...base_model import BaseModel, BaseModelConfig, load_model, save_model
@@ -21,18 +20,16 @@ from ...nn_models import (
     BackwardArchiConfig,
     ForwardArchiConfig,
     IdentityNNConfig,
-    ResidualActorArchiConfig,
     SimpleActorArchiConfig,
     eval_mode,
 )
-from ..normalizers import ObsNormalizerConfig
-from ..pixel_models import (
+from ...normalizers import AVAILABLE_NORMALIZERS, IdentityNormalizerConfig
+from ...pixel_models import (
     AugmentatorArchiConfig,
     DreamerEncoderArchiConfig,
     DrQEncoderArchiConfig,
     ImpalaEncoderArchiConfig,
 )
-from ..pytree_utils import tree_get_batch_size
 
 
 class FBModelArchiConfig(BaseConfig):
@@ -45,7 +42,6 @@ class FBModelArchiConfig(BaseConfig):
     actor: (
         ActorArchiConfig
         | SimpleActorArchiConfig
-        | ResidualActorArchiConfig
     ) = pydantic.Field(SimpleActorArchiConfig(), discriminator="name")
     left_encoder: BackwardArchiConfig | IdentityNNConfig = pydantic.Field(IdentityNNConfig(), discriminator="name")
     # same config used for both the fw and bw rgb encoders
@@ -59,7 +55,9 @@ class FBModelConfig(BaseModelConfig):
     name: tp.Literal["FBModel"] = "FBModel"
 
     archi: FBModelArchiConfig = FBModelArchiConfig()
-    obs_normalizer: ObsNormalizerConfig = ObsNormalizerConfig()
+    obs_normalizer: AVAILABLE_NORMALIZERS = pydantic.Field(
+        IdentityNormalizerConfig(), discriminator="name"
+    )
     inference_batch_size: int = 500_000
     seq_length: int = 1
     actor_std: float = 0.2
@@ -108,22 +106,22 @@ class FBModel(BaseModel):
         self._target_forward_map = copy.deepcopy(self._forward_map)
         self._target_left_encoder = copy.deepcopy(self._left_encoder)
 
-    def _normalize(self, obs: torch.Tensor | dict[str, torch.Tensor]):
+    def _normalize(self, obs: torch.Tensor):
         with torch.no_grad(), eval_mode(self._obs_normalizer):
             return self._obs_normalizer(obs)
 
     @torch.no_grad()
-    def backward_map(self, obs: torch.Tensor | dict[str, torch.Tensor]):
+    def backward_map(self, obs: torch.Tensor):
         with autocast(device_type=self.device, dtype=self.amp_dtype, enabled=self.cfg.amp):
             return self._backward_map(self._bw_encoder(self._normalize(obs)))
 
     @torch.no_grad()
-    def forward_map(self, obs: torch.Tensor | dict[str, torch.Tensor], z: torch.Tensor, action: torch.Tensor):
+    def forward_map(self, obs: torch.Tensor, z: torch.Tensor, action: torch.Tensor):
         with autocast(device_type=self.device, dtype=self.amp_dtype, enabled=self.cfg.amp):
             return self._forward_map(self._left_encoder(self._fw_encoder(self._normalize(obs))), z, action)
 
     @torch.no_grad()
-    def actor(self, obs: torch.Tensor | dict[str, torch.Tensor], z: torch.Tensor, std: float):
+    def actor(self, obs: torch.Tensor, z: torch.Tensor, std: float):
         with autocast(device_type=self.device, dtype=self.amp_dtype, enabled=self.cfg.amp):
             obs = self._fw_encoder(self._normalize(obs))
             obs = self._left_encoder(obs) if self.cfg.actor_encode_obs else obs
@@ -138,39 +136,25 @@ class FBModel(BaseModel):
             z = math.sqrt(z.shape[-1]) * F.normalize(z, dim=-1)
         return z
 
-    def act(self, obs: torch.Tensor | dict[str, torch.Tensor], z: torch.Tensor, mean: bool = True) -> torch.Tensor:
+    def act(self, obs: torch.Tensor, z: torch.Tensor, mean: bool = True) -> torch.Tensor:
         dist = self.actor(obs, z, self.cfg.actor_std)
         if mean:
             return dist.mean.float()
-        return dist.sample().float()  # TODO we upcast to float32 to make sure the action can be converted to numpy later
+        return dist.sample().float()
 
     def reward_inference(
-        self, next_obs: torch.Tensor | dict[str, torch.Tensor], reward: torch.Tensor, weight: torch.Tensor | None = None
+        self, next_obs: torch.Tensor, reward: torch.Tensor, weight: torch.Tensor | None = None
     ) -> torch.Tensor:
         with autocast(device_type=self.device, dtype=self.amp_dtype, enabled=self.cfg.amp):
-            batch_size = tree_get_batch_size(next_obs)
+            batch_size = next_obs.shape[0]
             num_batches = int(np.ceil(batch_size / self.cfg.inference_batch_size))
             z = 0
             wr = reward if weight is None else reward * weight
             for i in range(num_batches):
                 start_idx, end_idx = i * self.cfg.inference_batch_size, (i + 1) * self.cfg.inference_batch_size
-                next_obs_slice = tree_map(lambda x: x[start_idx:end_idx].to(self.device), next_obs)
+                next_obs_slice = next_obs[start_idx:end_idx].to(self.device)
                 B = self.backward_map(next_obs_slice)
                 z += torch.matmul(wr[start_idx:end_idx].to(self.device).T, B)
-        return self.project_z(z)
-
-    def reward_wr_inference(self, next_obs: torch.Tensor | dict[str, torch.Tensor], reward: torch.Tensor) -> torch.Tensor:
-        return self.reward_inference(next_obs, reward, F.softmax(10 * reward, dim=0))
-
-    def goal_inference(self, next_obs: torch.Tensor | dict[str, torch.Tensor]) -> torch.Tensor:
-        z = self.backward_map(next_obs)
-        return self.project_z(z)
-
-    def tracking_inference(self, next_obs: torch.Tensor | dict[str, torch.Tensor]) -> torch.Tensor:
-        z = self.backward_map(next_obs)
-        for step in range(z.shape[0]):
-            end_idx = min(step + self.cfg.seq_length, z.shape[0])
-            z[step] = z[step:end_idx].mean(dim=0)
         return self.project_z(z)
 
     @classmethod

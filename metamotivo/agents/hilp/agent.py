@@ -87,9 +87,6 @@ class HilpAgent(SFAgent):
         return obs, next_obs, future_obs
 
     def _reward(self, obs, goals):
-        if isinstance(obs, dict):
-            obs = torch.cat([v for v in obs.values()], dim=-1)
-            goals = torch.cat([v for v in goals.values()], dim=-1)
         return (torch.linalg.norm(obs - goals, dim=-1) < 1e-6).float()
 
     def feature_loss(

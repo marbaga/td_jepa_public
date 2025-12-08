@@ -31,24 +31,24 @@ class SFFlowBCModelConfig(SFModelConfig):
 class SFFlowBCModelMixin:
     def __init__(self, obs_space, action_dim, cfg: SFModelConfig):
         obs_space = (
-            gymnasium.spaces.Box(low=-np.inf, high=np.inf, shape=(self.cfg.archi.L_dim,), dtype=np.float32)
-            if self.cfg.actor_encode_obs
+            gymnasium.spaces.Box(low=-np.inf, high=np.inf, shape=(cfg.archi.L_dim,), dtype=np.float32)
+            if cfg.actor_encode_obs
             else self._sf_encoder.output_space
         )
-        self._actor_vf = self.cfg.archi.actor_vf.build(obs_space, action_dim)
+        self._actor_vf = cfg.archi.actor_vf.build(obs_space, action_dim)
         # make sure the model is in eval mode and never computes gradients
         self.train(False)
         self.requires_grad_(False)
         self.to(self.device)
 
     @torch.no_grad()
-    def actor(self, obs: torch.Tensor | dict[str, torch.Tensor], z: torch.Tensor, **kwargs) -> torch.Tensor:
+    def actor(self, obs: torch.Tensor, z: torch.Tensor, **kwargs) -> torch.Tensor:
         obs = self._sf_encoder(self._normalize(obs))
         obs = self._left_encoder(obs) if self.cfg.actor_encode_obs else obs
         noises = torch.randn((z.shape[0], self.action_dim), device=z.device, dtype=z.dtype)
         return self._actor(obs, z, noises)
 
-    def act(self, obs: torch.Tensor | dict[str, torch.Tensor], z: torch.Tensor, mean: bool = True) -> torch.Tensor:
+    def act(self, obs: torch.Tensor, z: torch.Tensor, mean: bool = True) -> torch.Tensor:
         del mean  # not used
         return self.actor(obs, z)
 

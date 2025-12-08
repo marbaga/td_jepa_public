@@ -12,11 +12,9 @@ import safetensors
 import torch
 import torch.nn.functional as F
 from torch.amp import autocast
-from torch.utils._pytree import tree_map
 
 from ...base import BaseConfig
 from ...envs.utils.gym_spaces import json_to_space, space_to_json
-from ...misc.zbuffer import ZBuffer
 from ...nn_models import _soft_update_params, eval_mode, weight_init
 from .model import FBModel, FBModelConfig
 
@@ -32,7 +30,7 @@ class FBAgentTrainConfig(BaseConfig):
     ortho_coef: float = 1.0
     train_goal_ratio: float = 0.5
     fb_pessimism_penalty: float = 0.0
-    actor_pessimism_penalty: float = 0.5
+    actor_pessimism_penalty: float = 0.0
     stddev_clip: float = 0.3
     q_loss_coef: float = 0.0
     batch_size: int = 1024
@@ -68,7 +66,6 @@ class FBAgent:
         self._model: FBModel = self.cfg.model.build(obs_space, action_dim)
         self.setup_training()
         self.setup_compile()
-        # This is just to be sure? I think it should not change since build
         self._model.to(self.device)
 
     @property
@@ -122,7 +119,6 @@ class FBAgent:
         self.off_diag = 1 - torch.eye(self.cfg.train.batch_size, self.cfg.train.batch_size, device=self.device)
         self.off_diag_sum = self.off_diag.sum()
 
-        self.z_buffer = ZBuffer(self.cfg.train.z_buffer_size, self.cfg.model.archi.z_dim, self._model.device)
 
     def setup_compile(self):
         print(f"compile {self.cfg.compile}")
@@ -131,7 +127,8 @@ class FBAgent:
             print(f"compiling with mode '{mode}'")
             self.update_fb = torch.compile(self.update_fb, mode=mode)  # use fullgraph=True to debug for graph breaks
             self.update_actor = torch.compile(self.update_actor, mode=mode)  # use fullgraph=True to debug for graph breaks
-            self.sample_mixed_z = torch.compile(self.sample_mixed_z, mode=mode, fullgraph=True)
+            # feel free to re-enable compilation if https://github.com/pytorch/pytorch/issues/166604 is resolved 
+            # self.sample_mixed_z = torch.compile(self.sample_mixed_z, mode=mode, fullgraph=True)
             self.aug = torch.compile(self.aug, mode=mode)
             self.enc = torch.compile(self.enc, mode=mode)
 
@@ -142,17 +139,17 @@ class FBAgent:
             self.update_fb = CudaGraphModule(self.update_fb, warmup=5)
             self.update_actor = CudaGraphModule(self.update_actor, warmup=5)
 
-    def act(self, obs: torch.Tensor | dict[str, torch.Tensor], z: torch.Tensor, mean: bool = True) -> torch.Tensor:
+    def act(self, obs: torch.Tensor, z: torch.Tensor, mean: bool = True) -> torch.Tensor:
         return self._model.act(obs, z, mean)
 
     @torch.no_grad()
-    def sample_mixed_z(self, train_goal: torch.Tensor | dict[str, torch.Tensor] | None = None, *args, **kwargs):
+    def sample_mixed_z(self, train_goal: torch.Tensor | None = None, *args, **kwargs):
         # samples a batch from the z distribution used to update the networks
         with autocast(device_type=self.device, dtype=self._model.amp_dtype, enabled=self.cfg.model.amp):
             z = self._model.sample_z(self.cfg.train.batch_size, device=self.device)
             if train_goal is not None:
                 perm = torch.randperm(self.cfg.train.batch_size, device=self.device)
-                train_goal = tree_map(lambda x: x[perm], train_goal)
+                train_goal = train_goal[perm]
                 goals = self._model._backward_map(train_goal)
                 goals = self._model.project_z(goals)
                 mask = torch.rand((self.cfg.train.batch_size, 1), device=self.device) < self.cfg.train.train_goal_ratio
@@ -180,9 +177,9 @@ class FBAgent:
         batch = replay_buffer["train"].sample(self.cfg.train.batch_size)
 
         obs, action, next_obs, terminated = (
-            tree_map(lambda x: x.to(self.device), batch["observation"]),
+            batch["observation"].to(self.device),
             batch["action"].to(self.device),
-            tree_map(lambda x: x.to(self.device), batch["next"]["observation"]),
+            batch["next"]["observation"].to(self.device),
             batch["next"]["terminated"].to(self.device),
         )
         discount = self.cfg.train.discount * ~terminated
@@ -198,7 +195,6 @@ class FBAgent:
         obs, next_obs, goal = self.enc(obs, next_obs)
 
         z = self.sample_mixed_z(train_goal=goal).clone()
-        self.z_buffer.add(z)
 
         q_loss_coef = self.cfg.train.q_loss_coef if self.cfg.train.q_loss_coef > 0 else None
         clip_grad_norm = self.cfg.train.clip_grad_norm if self.cfg.train.clip_grad_norm > 0 else None
@@ -215,7 +211,7 @@ class FBAgent:
         )
         metrics.update(
             self.update_actor(
-                obs=tree_map(lambda x: x.detach(), obs),
+                obs=obs.detach(),
                 action=action,
                 z=z,
                 clip_grad_norm=clip_grad_norm,
@@ -230,7 +226,7 @@ class FBAgent:
 
         return metrics
 
-    def sample_action_from_norm_obs(self, obs: torch.Tensor | dict[str, torch.Tensor], z: torch.Tensor) -> torch.Tensor:
+    def sample_action_from_norm_obs(self, obs: torch.Tensor, z: torch.Tensor) -> torch.Tensor:
         with autocast(device_type=self.device, dtype=self._model.amp_dtype, enabled=self.cfg.model.amp):
             dist = self._model._actor(obs, z, self._model.cfg.actor_std)
             action = dist.sample(clip=self.cfg.train.stddev_clip)
@@ -238,10 +234,10 @@ class FBAgent:
 
     def update_fb(
         self,
-        obs: torch.Tensor | dict[str, torch.Tensor],
+        obs: torch.Tensor,
         action: torch.Tensor,
         discount: torch.Tensor,
-        next_obs: torch.Tensor | dict[str, torch.Tensor],
+        next_obs: torch.Tensor,
         goal: torch.Tensor,
         z: torch.Tensor,
         q_loss_coef: float | None,
@@ -249,8 +245,6 @@ class FBAgent:
     ) -> Dict[str, torch.Tensor]:
         with autocast(device_type=self.device, dtype=self._model.amp_dtype, enabled=self.cfg.model.amp):
             with torch.no_grad():
-                # dist = self._model._actor(next_obs, z, self._model.cfg.actor_std)
-                # next_action = dist.sample(clip=self.cfg.train.stddev_clip)
                 next_left_enc = self._model._target_left_encoder(next_obs)  # batch x L_dim
                 actor_in = next_left_enc if self.cfg.model.actor_encode_obs else next_obs
                 next_action = self.sample_action_from_norm_obs(actor_in, z)
@@ -282,10 +276,9 @@ class FBAgent:
                 with torch.no_grad():
                     next_Qs = (target_Fs * z).sum(dim=-1)  # num_parallel x batch
                     _, _, next_Q = self.get_targets_uncertainty(next_Qs, self.cfg.train.fb_pessimism_penalty)  # batch
-                    # TODO: we disable autocast here to make sure B and cov have the same dtype (otherwise torch.linalg.solve fails)
+                    # we disable autocast here to make sure B and cov have the same dtype (otherwise torch.linalg.solve fails)
                     with autocast(device_type=self.device, dtype=self._model.amp_dtype, enabled=False):
                         cov = torch.matmul(B.T, B) / B.shape[0]  # z_dim x z_dim
-                    # inv_cov = torch.inverse(cov)  # z_dim x z_dim
                     B_inv_conv = torch.linalg.solve(cov, B, left=False)
                     implicit_reward = (B_inv_conv * z).sum(dim=-1)  # batch
                     target_Q = implicit_reward.detach() + discount.squeeze() * next_Q  # batch
@@ -325,7 +318,7 @@ class FBAgent:
 
     def update_actor(
         self,
-        obs: torch.Tensor | dict[str, torch.Tensor],
+        obs: torch.Tensor,
         action: torch.Tensor,
         z: torch.Tensor,
         clip_grad_norm: float | None,
@@ -333,7 +326,7 @@ class FBAgent:
         return self.update_td3_actor(obs=obs, action=action, z=z, clip_grad_norm=clip_grad_norm)
 
     def update_td3_actor(
-        self, obs: torch.Tensor | dict[str, torch.Tensor], action: torch.Tensor, z: torch.Tensor, clip_grad_norm: float | None
+        self, obs: torch.Tensor, action: torch.Tensor, z: torch.Tensor, clip_grad_norm: float | None
     ) -> Dict[str, torch.Tensor]:
         with autocast(device_type=self.device, dtype=self._model.amp_dtype, enabled=self.cfg.model.amp):
             with torch.no_grad():
@@ -378,19 +371,6 @@ class FBAgent:
             / num_parallel_scaling
         )
         return preds_mean, preds_unc, preds_mean - pessimism_penalty * preds_unc
-
-    def maybe_update_rollout_context(self, z: torch.Tensor | None, step_count: torch.Tensor, replay_buffer: None = None) -> torch.Tensor:
-        # get mask for environmets where we need to change z
-        if z is not None:
-            mask_reset_z = step_count % self.cfg.train.update_z_every_step == 0
-            if self.cfg.train.use_mix_rollout and not self.z_buffer.empty():
-                new_z = self.z_buffer.sample(z.shape[0], device=self._model.device)
-            else:
-                new_z = self._model.sample_z(z.shape[0], device=self._model.device)
-            z = torch.where(mask_reset_z, new_z, z.to(self._model.device))
-        else:
-            z = self._model.sample_z(step_count.shape[0], device=self._model.device)
-        return z
 
     @classmethod
     def load(cls, path: str, device: str | None = None):

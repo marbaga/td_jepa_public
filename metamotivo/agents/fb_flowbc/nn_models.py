@@ -8,7 +8,6 @@ import typing as tp
 import torch
 from torch import nn
 
-from ...nn_filters import IdentityInputFilterConfig, NNFilter
 from ...nn_models import BaseConfig, linear, simple_embedding
 
 
@@ -18,7 +17,6 @@ class NoiseConditionedActorArchiConfig(BaseConfig):
     hidden_dim: int = 1024
     hidden_layers: int = 1
     embedding_layers: int = 2
-    input_filter: NNFilter = IdentityInputFilterConfig()
 
     def build(self, obs_space, z_dim: int, action_dim: int) -> "NoiseConditionedActor":
         return NoiseConditionedActor(obs_space, z_dim, action_dim, self)
@@ -27,11 +25,9 @@ class NoiseConditionedActorArchiConfig(BaseConfig):
 class NoiseConditionedActor(nn.Module):
     def __init__(self, obs_space, z_dim, action_dim, cfg: NoiseConditionedActorArchiConfig) -> None:
         super().__init__()
-        self.input_filter = cfg.input_filter.build(obs_space)
-        filtered_space = self.input_filter.output_space
 
-        assert len(filtered_space.shape) == 1, "obs_space must have a 1D shape"
-        obs_dim = filtered_space.shape[0]
+        assert len(obs_space.shape) == 1, "obs_space must have a 1D shape"
+        obs_dim = obs_space.shape[0]
         self.cfg: NoiseConditionedActorArchiConfig = cfg
         self.embed_z = simple_embedding(obs_dim + z_dim + action_dim, cfg.hidden_dim, cfg.embedding_layers)
         self.embed_s = simple_embedding(obs_dim + action_dim, cfg.hidden_dim, cfg.embedding_layers)
@@ -42,8 +38,7 @@ class NoiseConditionedActor(nn.Module):
         seq += [linear(cfg.hidden_dim, action_dim)]
         self.policy = nn.Sequential(*seq)
 
-    def forward(self, obs: torch.Tensor | dict[str, torch.Tensor], z: torch.Tensor, noise: torch.Tensor) -> torch.Tensor:
-        obs = self.input_filter(obs)
+    def forward(self, obs: torch.Tensor, z: torch.Tensor, noise: torch.Tensor) -> torch.Tensor:
         z_embedding = self.embed_z(torch.cat([obs, z, noise], dim=-1))  # bs x h_dim // 2
         s_embedding = self.embed_s(torch.cat([obs, noise], dim=-1))  # bs x h_dim // 2
         embedding = torch.cat([s_embedding, z_embedding], dim=-1)

@@ -8,7 +8,6 @@ import typing as tp
 import torch
 
 from ...base_model import load_model
-from ...pytree_utils import tree_get_batch_size
 from ..td3.model import TD3Model, TD3ModelArchiConfig, TD3ModelConfig
 from .nn_models import NoiseConditionedActorArchiConfig, SimpleVectorFieldArchiConfig
 
@@ -47,13 +46,12 @@ class TD3FlowBCModel(TD3Model):
         self.to(self.device)
 
     @torch.no_grad()
-    def actor(self, obs: torch.Tensor | dict[str, torch.Tensor]) -> torch.Tensor:
-        batch_dim = tree_get_batch_size(obs)
-        noises = torch.randn((batch_dim, self.action_dim), device=self.device, dtype=torch.float32)
+    def actor(self, obs: torch.Tensor) -> torch.Tensor:
+        noises = torch.randn((obs.shape[0], self.action_dim), device=self.device, dtype=torch.float32)
         actions = self._actor(self._encoder(self._normalize(obs)), noises)
         return actions
 
-    def act(self, obs: torch.Tensor | dict[str, torch.Tensor], z: None = None, mean: bool = True) -> torch.Tensor:
+    def act(self, obs: torch.Tensor, z: None = None, mean: bool = True) -> torch.Tensor:
         del z  # not used
         del mean  # not used
         return self.actor(obs)

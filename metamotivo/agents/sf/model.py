@@ -19,11 +19,10 @@ from ...nn_models import (
     BackwardArchiConfig,
     ForwardArchiConfig,
     IdentityNNConfig,
-    ResidualActorArchiConfig,
     SimpleActorArchiConfig,
     eval_mode,
 )
-from ...normalizers import ObsNormalizerConfig
+from ...normalizers import AVAILABLE_NORMALIZERS, IdentityNormalizerConfig
 from ...pixel_models import (
     AugmentatorArchiConfig,
     DreamerEncoderArchiConfig,
@@ -38,7 +37,7 @@ class SFModelArchiConfig(BaseConfig):
     norm_z: bool = True
     successor_features: ForwardArchiConfig = ForwardArchiConfig()
     features: BackwardArchiConfig = BackwardArchiConfig()
-    actor: SimpleActorArchiConfig | ResidualActorArchiConfig = pydantic.Field(SimpleActorArchiConfig(), discriminator="name")
+    actor: SimpleActorArchiConfig = pydantic.Field(SimpleActorArchiConfig(), discriminator="name")
     left_encoder: BackwardArchiConfig | IdentityNNConfig = pydantic.Field(IdentityNNConfig(), discriminator="name")
     # a shared image encoder config that is used for all networks
     rgb_encoder: IdentityNNConfig | DrQEncoderArchiConfig | DreamerEncoderArchiConfig | ImpalaEncoderArchiConfig = pydantic.Field(
@@ -51,7 +50,9 @@ class SFModelConfig(BaseModelConfig):
     name: tp.Literal["SFModel"] = "SFModel"
 
     archi: SFModelArchiConfig = SFModelArchiConfig()
-    obs_normalizer: ObsNormalizerConfig = ObsNormalizerConfig()
+    obs_normalizer: AVAILABLE_NORMALIZERS = pydantic.Field(
+        IdentityNormalizerConfig(), discriminator="name"
+    )
     actor_std: float = 0.2
     # if True, the learned features are first centered by subtracting their running mean before being passed to SFs
     center_features: bool = False

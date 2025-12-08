@@ -13,7 +13,7 @@ from metamotivo.base import BaseConfig
 from metamotivo.base_model import BaseModel, BaseModelConfig, load_model, save_model
 
 from ...nn_models import IdentityNNConfig, eval_mode
-from ...normalizers import ObsNormalizerConfig
+from ...normalizers import AVAILABLE_NORMALIZERS, IdentityNormalizerConfig
 from ...pixel_models import AugmentatorArchiConfig, DreamerEncoderArchiConfig, DrQEncoderArchiConfig, ImpalaEncoderArchiConfig
 from .nn_models import ActorArchiConfig, CriticArchiConfig
 
@@ -31,7 +31,9 @@ class TD3ModelConfig(BaseModelConfig):
     name: tp.Literal["TD3Model"] = "TD3Model"
     archi: TD3ModelArchiConfig = TD3ModelArchiConfig()
     actor_std: float = 0.2
-    obs_normalizer: ObsNormalizerConfig = ObsNormalizerConfig()
+    obs_normalizer: AVAILABLE_NORMALIZERS = pydantic.Field(
+        IdentityNormalizerConfig(), discriminator="name"
+    )
 
     def build(self, obs_space, action_dim) -> "TD3Model":
         return self.object_class(obs_space, action_dim, self)
@@ -66,21 +68,21 @@ class TD3Model(BaseModel):
     def _prepare_for_train(self) -> None:
         self._target_critic = copy.deepcopy(self._critic)
 
-    def _normalize(self, obs: torch.Tensor | dict[str, torch.Tensor]):
+    def _normalize(self, obs: torch.Tensor):
         with torch.no_grad(), eval_mode(self._obs_normalizer):
             return self._obs_normalizer(obs)
 
     @torch.no_grad()
-    def critic(self, obs: torch.Tensor | dict[str, torch.Tensor], action: torch.Tensor):
+    def critic(self, obs: torch.Tensor, action: torch.Tensor):
         obs = self._encoder(self._normalize(obs))
         return self._critic(obs, action)
 
     @torch.no_grad()
-    def actor(self, obs: torch.Tensor | dict[str, torch.Tensor], std: float):
+    def actor(self, obs: torch.Tensor, std: float):
         obs = self._encoder(self._normalize(obs))
         return self._actor(obs, std)
 
-    def act(self, obs: torch.Tensor | dict[str, torch.Tensor], z: None = None, mean: bool = True) -> torch.Tensor:
+    def act(self, obs: torch.Tensor, z: None = None, mean: bool = True) -> torch.Tensor:
         del z  # not used
         dist = self.actor(obs, self.cfg.actor_std)
         if mean:

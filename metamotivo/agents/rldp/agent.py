@@ -8,7 +8,6 @@ from typing import Dict, Literal
 import torch
 import torch.nn.functional as F
 from torch.amp import autocast
-from torch.utils._pytree import tree_map
 
 from ..fb.agent import FBAgent, FBAgentConfig, FBAgentTrainConfig
 from ...nn_models import _soft_update_params, eval_mode
@@ -69,9 +68,9 @@ class RLDPAgent(FBAgent):
         batch = replay_buffer["train"].sample(self.cfg.train.batch_size)
 
         obs, action, next_obs, terminated = (
-            tree_map(lambda x: x.to(self.device), batch["observation"]),
+            batch["observation"].to(self.device),
             batch["action"].to(self.device),
-            tree_map(lambda x: x.to(self.device), batch["next"]["observation"]),
+            batch["next"]["observation"].to(self.device),
             batch["next"]["terminated"].to(self.device),
         )
         discount = self.cfg.train.discount * ~terminated
@@ -79,7 +78,7 @@ class RLDPAgent(FBAgent):
         future_obs, future_act = None, None
         if "traj_action" in batch:
             future_obs = batch["next"]["traj_observation"]
-            future_obs = tree_map(lambda x: x.reshape(-1, *x.shape[2:]), future_obs)
+            future_obs = future_obs.reshape(-1, *future_obs.shape[2:])
             future_act = batch["next"]["traj_action"]
 
         self._model._obs_normalizer(obs)
@@ -114,7 +113,7 @@ class RLDPAgent(FBAgent):
         )
         metrics.update(
             self.update_actor(
-                obs=tree_map(lambda x: x.detach(), obs),
+                obs=obs.detach(),
                 action=action,
                 z=z,
                 clip_grad_norm=clip_grad_norm,
@@ -131,13 +130,13 @@ class RLDPAgent(FBAgent):
 
     def update_fb(
         self,
-        obs: torch.Tensor | dict[str, torch.Tensor],
-        obs_bw: torch.Tensor | dict[str, torch.Tensor],
+        obs: torch.Tensor,
+        obs_bw: torch.Tensor,
         action: torch.Tensor,
         future_act: torch.Tensor,
         discount: torch.Tensor,
-        next_obs: torch.Tensor | dict[str, torch.Tensor],
-        future_obs: torch.Tensor | dict[str, torch.Tensor],
+        next_obs: torch.Tensor,
+        future_obs: torch.Tensor,
         goal: torch.Tensor,
         z: torch.Tensor,
         q_loss_coef: float | None,
@@ -194,10 +193,9 @@ class RLDPAgent(FBAgent):
                 with torch.no_grad():
                     next_Qs = (target_Fs * z).sum(dim=-1)  # num_parallel x batch
                     _, _, next_Q = self.get_targets_uncertainty(next_Qs, self.cfg.train.fb_pessimism_penalty)  # batch
-                    # TODO: we disable autocast here to make sure B and cov have the same dtype (otherwise torch.linalg.solve fails)
+                    # we disable autocast here to make sure B and cov have the same dtype (otherwise torch.linalg.solve fails)
                     with autocast(device_type=self.device, dtype=self._model.amp_dtype, enabled=False):
                         cov = torch.matmul(B.T, B) / B.shape[0]  # z_dim x z_dim
-                    # inv_cov = torch.inverse(cov)  # z_dim x z_dim
                     B_inv_conv = torch.linalg.solve(cov, B, left=False)
                     implicit_reward = (B_inv_conv * z).sum(dim=-1)  # batch
                     target_Q = implicit_reward.detach() + discount.squeeze() * next_Q  # batch

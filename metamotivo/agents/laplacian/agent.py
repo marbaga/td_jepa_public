@@ -42,7 +42,7 @@ class LaplacianAgent(SFAgent):
         phi = self._model._features(obs)
         next_phi = self._model._features(next_obs)
         lap_loss = (phi - next_phi).pow(2).mean()
-        # TODO: the loss is off by a factor of 2 compared to FB
+        # the loss is not scaled by 0.5, compared to FB
         Cov = torch.matmul(phi, phi.T)
         Id = torch.eye(*Cov.size(), device=Cov.device)
         off_diag = ~Id.bool()

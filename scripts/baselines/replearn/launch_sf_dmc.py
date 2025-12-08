@@ -3,84 +3,74 @@
 # This source code is licensed under the CC BY-NC 4.0 license found in the
 # LICENSE file in the root directory of this source tree.
 
+import copy
 import dataclasses
 from typing import Literal
-
 import tyro
-from exca.confdict import ConfDict
 
-from entry_points.train_offline import TrainConfig
 from metamotivo.envs.dmc_tasks import ALL_TASKS
-from metamotivo.misc.launcher_utils import all_combinations_of_nested_dicts_for_sweep, launch_trials
+from metamotivo.misc.launcher_utils import all_combinations_of_nested_dicts_for_sweep, launch_trials, flatten, unflatten
 
-BASE_CFG = ConfDict(
-    {
-        "num_train_steps": 3_000_000,
-        "eval_every_steps": 250_000,
-        "checkpoint_every_steps": 250_000,
-        "agent": {
-            "name": "",  # to be updated later
-            "compile": True,
-            "model": {
-                "device": "cuda",
-                "obs_normalizer": {
-                    "normalizers": {
-                        "state": {
-                            "name": "IdentityNormalizerConfig",
-                        }
-                    }
-                },
-                "actor_std": 0.2,
-                "center_features": False,
-                "archi": {
-                    "successor_features": {
-                        "name": "ForwardArchi",
-                        "hidden_dim": 1024,
-                        "hidden_layers": 1,
-                    },
-                    "actor": {
-                        "hidden_dim": 1024,
-                        "hidden_layers": 1,
-                        "name": "simple",
-                    },
-                    "features": {
-                        "name": "BackwardArchi",
-                        "hidden_dim": 256,
-                        "hidden_layers": 2,
-                        "norm": True,
-                        "input_filter": {"name": "DictInputFilterConfig", "key": "state"},
-                    },
-                    "left_encoder": {
-                        "name": "BackwardArchi",
-                        "hidden_dim": 256,
-                        "hidden_layers": 0,
-                        "norm": True,
-                        "input_filter": {"name": "DictInputFilterConfig", "key": "state"},
-                    },
-                    "L_dim": 256,
-                    "z_dim": 50,
-                    "norm_z": True,
-                },
+BASE_CFG = {
+    "num_train_steps": 3_000_000,
+    "data": {
+        "name": "dmc",
+        "domain": "walker",
+        "load_n_episodes": 5_000,
+        "obs_type": "state",
+        "buffer_type": "parallel",
+    },
+    "env": {
+        "name": "dmc",
+        "domain": "walker",
+        "task": "walk"
+    },
+    "agent": {
+        "name": "",  # to be updated later
+        "compile": True,
+        "model": {
+            "device": "cuda",
+            "obs_normalizer": {
+                "name": "IdentityNormalizerConfig",
             },
-            "train": {
-                "batch_size": 1024,
-                "discount": 0.98,
-                "lr_sf": 1e-4,
-                "lr_features": 1e-4,
-                "lr_actor": 1e-4,
-                "train_goal_ratio": 0.5,
-                "q_loss": False,
-                "sf_target_tau": 0.001,
-                "features_target_tau": 0.001,
-                "sf_pessimism_penalty": 0,
-                "actor_pessimism_penalty": 0,
+            "archi": {
+                "successor_features": {
+                    "name": "ForwardArchi",
+                    "hidden_dim": 1024,
+                    "hidden_layers": 1,
+                },
+                "actor": {
+                    "hidden_dim": 1024,
+                    "hidden_layers": 1,
+                    "name": "simple",
+                },
+                "features": {
+                    "name": "BackwardArchi",
+                    "hidden_dim": 256,
+                    "hidden_layers": 2,
+                    "norm": True,
+                },
+                "left_encoder": {
+                    "name": "BackwardArchi",
+                    "hidden_dim": 256,
+                    "hidden_layers": 0,
+                    "norm": True,
+                },
+                "L_dim": 256,
+                "z_dim": 50,
+                "norm_z": True,
             },
         },
-    }
-)
+        "train": {
+            "batch_size": 1024,
+            "discount": 0.98,
+            "sf_target_tau": 0.001,
+            "features_target_tau": 0.001,
+        },
+    },
+}
 
 # extra params for the specific instance of SF agent
-# must be in flat format
 BASE_AGENT_CFG = {
     "sf": {"agent.name": "SFAgent"},
     "laplacian": {"agent.name": "LaplacianAgent"},
@@ -114,7 +104,6 @@ BASE_AGENT_CFG = {
         "agent.train.expectile": 0.9,
         "agent.train.prob_random_goal": 0.375,
         "agent.model.archi.features.norm": True,
-        "agent.model.center_features": False,
         "data.future": 0.99,
         "agent.model.archi.L_dim": 50,
     },
@@ -270,67 +259,44 @@ def sweep_laplacian_pointmass():
 
 @dataclasses.dataclass
 class LaunchArgs:
-    # Instead of launching the experiments, run the first sweep locally to test out the code
-    local: bool = False
-    # Print out the configs instead of running the experiments
-    dry: bool = False
+    # dataset and working paths
+    data_path: str = "/path/to/datasets"
+    workdir_root: str = "/path/to/workdir"
     # wandb config
     use_wandb: bool = False
-    wandb_ename: str | None = "unicorns"
-    wandb_gname: str | None = "sf"
-    wandb_pname: str | None = "replearn_dmc_paper"
-    # to run sweeps
+    wandb_gname: str | None = "td_jepa"
+    wandb_ename: str | None = "td_jepa"
+    wandb_pname: str | None = "td_jepa"
+    # specify to run sweeps
     sweep_config: str | None = None
+    # instead of launching all experiments, only run the first one
+    first_only: bool = False
+    # print out the configs instead of running the experiments
+    dry: bool = False
+    # launch with slurm
+    slurm: bool = False
+    # launch with exca
+    exca: bool = False
     # which sf agent to run
     sf_agent: str = "sf"
     # selects the depth of the left encoder
-    left_encoder: Literal["none", "shallow", "deep"] = "shallow"
+    left_encoder: Literal["shallow", "deep"] = "shallow"
 
 
 def main(args: LaunchArgs):
-    # Get default slurm arguments and location to store results
-    data_paths = get_default_data_paths_for_current_cluster()
-    exca_infra_args = get_default_exca_infra_args_for_current_cluster()
-    workdir_root = get_workdir_root(args.wandb_pname, args.wandb_gname)
-    # Move exca folder next to the run outputs
-    exca_infra_args["folder"] = str(workdir_root / "_exca")
 
-    base_config = BASE_CFG.copy()
-    base_config.update(
-        {
-            "data": {
-                "name": "dmc",
-                "dataset_root": data_paths["url_data_root_path"],
-                "domain": "walker",
-                "load_n_episodes": 5_000,
-                "obs_type": "state",
-                "buffer_type": "parallel",
-            },
-            "work_dir": str(workdir_root),
-            "use_wandb": args.use_wandb,
-            "wandb_ename": args.wandb_ename,
-            "wandb_pname": args.wandb_pname,
-            "wandb_gname": args.wandb_gname,
-            "infra": exca_infra_args,
-            "env": {"name": "dmc", "domain": "walker", "task": "walk"},
-        }
-    )
-
-    flat = ConfDict.flat(base_config)
-    flat.update(BASE_AGENT_CFG[args.sf_agent])
-    base_config = ConfDict(flat)
-
+    base_cfg = copy.deepcopy(BASE_CFG)
+    base_cfg["work_dir"] = args.workdir_root
+    base_cfg["data"]["dataset_root"] = args.data_path
+    flat = flatten(base_cfg)
+    flat.update(flatten(BASE_AGENT_CFG[args.sf_agent]))
+    base_cfg = unflatten(flat)
     match args.left_encoder:
-        case "none":
-            del base_config["agent"]["model"]["archi"]["left_encoder"]
-            base_config["agent"]["model"]["archi"]["left_encoder"] = {"name": "IdentityNNConfig"}
-            base_config["agent"]["model"]["archi"]["successor_features"]["input_filter"] = {"name": "DictInputFilterConfig", "key": "state"}
-            base_config["agent"]["model"]["archi"]["actor"]["input_filter"] = {"name": "DictInputFilterConfig", "key": "state"}
         case "shallow":
             pass
         case "deep":
-            base_config["agent"]["model"]["archi"]["left_encoder"]["hidden_layers"] = 2
-            base_config["agent"]["model"]["archi"]["L_dim"] = 50
+            base_cfg["agent"]["model"]["archi"]["left_encoder"]["hidden_layers"] = 2
+            base_cfg["agent"]["model"]["archi"]["L_dim"] = 50
         case _:
             raise NotImplementedError("Unknown left encoder configuration: ", args.left_encoder)
 
@@ -342,49 +308,62 @@ def main(args: LaunchArgs):
         else:
             raise RuntimeError("Unknown sweep configuration")
 
-    base_config = TrainConfig(**base_config)
-    trials = all_combinations_of_nested_dicts_for_sweep(sweep_params)
-    for i, trial in enumerate(trials):
-        trial["work_dir"] = f"{str(workdir_root)}/{i}"
-        trial["data.domain"] = trial["env.domain"]
-        trial["evaluations"] = [
+    trials = []
+    for i, trial in enumerate(all_combinations_of_nested_dicts_for_sweep(sweep_params)):
+        trial = flatten(trial)
+        trial.update(flatten(
             {
-                "name": "dmc_reward_eval",
-                "env": {
-                    "name": "dmc",
-                    "domain": trial["env.domain"],
-                    "task": ALL_TASKS[trial["env.domain"]][0],
-                },
-                "tasks": ALL_TASKS[trial["env.domain"]],
-                "num_envs": 1,
-                "num_episodes": 20,
-                "num_inference_samples": 10_000,
-            },
-        ]
-    launch_trials(base_config, trials, args.local, args.dry)
+                "use_wandb": args.use_wandb,
+                "wandb_ename": args.wandb_ename,
+                "wandb_pname": args.wandb_pname,
+                "wandb_gname": args.wandb_gname,
+                "work_dir": f"{args.workdir_root}/{i}",
+                "data.domain": trial["env.domain"],
+                "env.task": ALL_TASKS[trial["env.domain"]][0],
+                "evaluations": [
+                    {
+                        "name": "dmc_reward_eval",
+                        "env": {
+                            "name": "dmc",
+                            "domain": trial["env.domain"],
+                            "task": ALL_TASKS[trial["env.domain"]][0],
+                        },
+                        "tasks": ALL_TASKS[trial["env.domain"]],
+                        "num_episodes": 10,
+                        "num_inference_samples": 10_000,
+                    },
+                ],
+            }
+        ))
+        trials.append(trial)
+
+    launch_trials(base_cfg, trials, args.first_only, args.dry, args.slurm, args.exca)
 
 
 if __name__ == "__main__":
     args = tyro.cli(LaunchArgs)
     main(args)
-    # uv run -m scripts.replearn.launch_sf_dmc --wandb_gname spr_walker_v10 --sweep_config sweep_spr_walker --sf_agent spr --use_wandb
-    # uv run -m scripts.replearn.launch_sf_dmc --wandb_gname spr_cheetah_v10 --sweep_config sweep_spr_cheetah --sf_agent spr --use_wandb
-    # uv run -m scripts.replearn.launch_sf_dmc --wandb_gname spr_quadruped_v10 --sweep_config sweep_spr_quadruped --sf_agent spr --use_wandb
-    # uv run -m scripts.replearn.launch_sf_dmc --wandb_gname spr_pointmass_v10 --sweep_config sweep_spr_pointmass --sf_agent spr --use_wandb
-    # uv run -m scripts.replearn.launch_sf_dmc --wandb_gname spr_multi_walker_v10 --sweep_config sweep_spr_walker --sf_agent spr-multi --use_wandb
-    # uv run -m scripts.replearn.launch_sf_dmc --wandb_gname spr_multi_cheetah_v10 --sweep_config sweep_spr_cheetah --sf_agent spr-multi --use_wandb
-    # uv run -m scripts.replearn.launch_sf_dmc --wandb_gname spr_multi_quadruped_v10 --sweep_config sweep_spr_quadruped --sf_agent spr-multi --use_wandb
-    # uv run -m scripts.replearn.launch_sf_dmc --wandb_gname spr_multi_pointmass_v10 --sweep_config sweep_spr_pointmass --sf_agent spr-multi --use_wandb
-    # uv run -m scripts.replearn.launch_sf_dmc --wandb_gname hilp_walker_v10 --sweep_config sweep_hilp_walker --sf_agent hilp --use_wandb
-    # uv run -m scripts.replearn.launch_sf_dmc --wandb_gname hilp_cheetah_v10 --sweep_config sweep_hilp_cheetah --sf_agent hilp --use_wandb
-    # uv run -m scripts.replearn.launch_sf_dmc --wandb_gname hilp_quadruped_v10 --sweep_config sweep_hilp_quadruped --sf_agent hilp --use_wandb
-    # uv run -m scripts.replearn.launch_sf_dmc --wandb_gname hilp_pointmass_v10 --sweep_config sweep_hilp_pointmass --sf_agent hilp --use_wandb
-    # uv run -m scripts.replearn.launch_sf_dmc --wandb_gname laplacian_walker_v10 --sweep_config sweep_laplacian_walker --sf_agent laplacian --use_wandb
-    # uv run -m scripts.replearn.launch_sf_dmc --wandb_gname laplacian_cheetah_v10 --sweep_config sweep_laplacian_cheetah --sf_agent laplacian --use_wandb
-    # uv run -m scripts.replearn.launch_sf_dmc --wandb_gname laplacian_quadruped_v10 --sweep_config sweep_laplacian_quadruped --sf_agent laplacian --use_wandb
-    # uv run -m scripts.replearn.launch_sf_dmc --wandb_gname laplacian_pointmass_v10 --sweep_config sweep_laplacian_pointmass --sf_agent laplacian --use_wandb
+    # uv run -m scripts.baselines.replearn.launch_sf_dmc --use_wandb --wandb_gname spr_walker_proprio --data_path datasets --workdir_root results --sweep_config sweep_spr_walker --sf_agent spr
+    # uv run -m scripts.baselines.replearn.launch_sf_dmc --use_wandb --wandb_gname spr_cheetah_proprio --data_path datasets --workdir_root results --sweep_config sweep_spr_cheetah --sf_agent spr
+    # uv run -m scripts.baselines.replearn.launch_sf_dmc --use_wandb --wandb_gname spr_quadruped_proprio --data_path datasets --workdir_root results --sweep_config sweep_spr_quadruped --sf_agent spr
+    # uv run -m scripts.baselines.replearn.launch_sf_dmc --use_wandb --wandb_gname spr_pointmass_proprio --data_path datasets --workdir_root results --sweep_config sweep_spr_pointmass --sf_agent spr
 
-    # uv run -m scripts.replearn.launch_sf_dmc --wandb_gname icvf_walker_v10 --sweep_config sweep_hilp_walker --sf_agent icvf --use_wandb
-    # uv run -m scripts.replearn.launch_sf_dmc --wandb_gname icvf_cheetah_v10 --sweep_config sweep_hilp_cheetah --sf_agent icvf --use_wandb
-    # uv run -m scripts.replearn.launch_sf_dmc --wandb_gname icvf_quadruped_v10 --sweep_config sweep_hilp_quadruped --sf_agent icvf --use_wandb
-    # uv run -m scripts.replearn.launch_sf_dmc --wandb_gname icvf_pointmass_v10 --sweep_config sweep_hilp_pointmass --sf_agent icvf --use_wandb
+    # uv run -m scripts.baselines.replearn.launch_sf_dmc --use_wandb --wandb_gname spr_multi_walker_proprio --data_path datasets --workdir_root results --sweep_config sweep_spr_walker --sf_agent spr-multi
+    # uv run -m scripts.baselines.replearn.launch_sf_dmc --use_wandb --wandb_gname spr_multi_cheetah_proprio --data_path datasets --workdir_root results --sweep_config sweep_spr_cheetah --sf_agent spr-multi
+    # uv run -m scripts.baselines.replearn.launch_sf_dmc --use_wandb --wandb_gname spr_multi_quadruped_proprio --data_path datasets --workdir_root results --sweep_config sweep_spr_quadruped --sf_agent spr-multi
+    # uv run -m scripts.baselines.replearn.launch_sf_dmc --use_wandb --wandb_gname spr_multi_pointmass_proprio --data_path datasets --workdir_root results --sweep_config sweep_spr_pointmass --sf_agent spr-multi
+
+    # uv run -m scripts.baselines.replearn.launch_sf_dmc --use_wandb --wandb_gname hilp_walker_proprio --data_path datasets --workdir_root results --sweep_config sweep_hilp_walker --sf_agent hilp
+    # uv run -m scripts.baselines.replearn.launch_sf_dmc --use_wandb --wandb_gname hilp_cheetah_proprio --data_path datasets --workdir_root results --sweep_config sweep_hilp_cheetah --sf_agent hilp
+    # uv run -m scripts.baselines.replearn.launch_sf_dmc --use_wandb --wandb_gname hilp_quadruped_proprio --data_path datasets --workdir_root results --sweep_config sweep_hilp_quadruped --sf_agent hilp
+    # uv run -m scripts.baselines.replearn.launch_sf_dmc --use_wandb --wandb_gname hilp_pointmass_proprio --data_path datasets --workdir_root results --sweep_config sweep_hilp_pointmass --sf_agent hilp
+
+    # uv run -m scripts.baselines.replearn.launch_sf_dmc --use_wandb --wandb_gname laplacian_walker_proprio --data_path datasets --workdir_root results --sweep_config sweep_laplacian_walker --sf_agent laplacian
+    # uv run -m scripts.baselines.replearn.launch_sf_dmc --use_wandb --wandb_gname laplacian_cheetah_proprio --data_path datasets --workdir_root results --sweep_config sweep_laplacian_cheetah --sf_agent laplacian
+    # uv run -m scripts.baselines.replearn.launch_sf_dmc --use_wandb --wandb_gname laplacian_quadruped_proprio --data_path datasets --workdir_root results --sweep_config sweep_laplacian_quadruped --sf_agent laplacian
+    # uv run -m scripts.baselines.replearn.launch_sf_dmc --use_wandb --wandb_gname laplacian_pointmass_proprio --data_path datasets --workdir_root results --sweep_config sweep_laplacian_pointmass --sf_agent laplacian
+
+    # uv run -m scripts.baselines.replearn.launch_sf_dmc --use_wandb --wandb_gname icvf_walker_proprio --data_path datasets --workdir_root results --sweep_config sweep_hilp_walker --sf_agent icvf
+    # uv run -m scripts.baselines.replearn.launch_sf_dmc --use_wandb --wandb_gname icvf_cheetah_proprio --data_path datasets --workdir_root results --sweep_config sweep_hilp_cheetah --sf_agent icvf
+    # uv run -m scripts.baselines.replearn.launch_sf_dmc --use_wandb --wandb_gname icvf_quadruped_proprio --data_path datasets --workdir_root results --sweep_config sweep_hilp_quadruped --sf_agent icvf
+    # uv run -m scripts.baselines.replearn.launch_sf_dmc --use_wandb --wandb_gname icvf_pointmass_proprio --data_path datasets --workdir_root results --sweep_config sweep_hilp_pointmass --sf_agent icvf

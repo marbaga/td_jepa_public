@@ -8,7 +8,6 @@ import torch
 from torch import nn
 
 from ...base import BaseConfig
-from ...nn_filters import IdentityInputFilterConfig, NNFilter
 from ...nn_models import TruncatedNormal, linear
 
 
@@ -19,7 +18,6 @@ class CriticArchiConfig(BaseConfig):
     num_parallel: int = 2
     layer_norm: bool = False
     ensemble_mode: str = "batch"  # not used at the moment
-    input_filter: NNFilter = IdentityInputFilterConfig()
 
     def build(self, obs_space, action_dim):
         return SimpleCritic(obs_space, action_dim, self)
@@ -32,11 +30,8 @@ class SimpleCritic(nn.Module):
         super().__init__()
         self.cfg = cfg
 
-        self.input_filter = cfg.input_filter.build(obs_space)
-        filtered_space = self.input_filter.output_space
-
-        assert len(filtered_space.shape) == 1, "filtered_space must be 1D box"
-        obs_dim = filtered_space.shape[0]
+        assert len(obs_space.shape) == 1, "obs_space must be 1D box"
+        obs_dim = obs_space.shape[0]
         seq = [linear(obs_dim + action_dim, cfg.hidden_dim, cfg.num_parallel), nn.ReLU()]
         if self.cfg.layer_norm:
             seq += [nn.LayerNorm(cfg.hidden_dim)]
@@ -47,8 +42,7 @@ class SimpleCritic(nn.Module):
         seq += [linear(cfg.hidden_dim, 1, cfg.num_parallel)]
         self.Qs = nn.Sequential(*seq)
 
-    def forward(self, obs: torch.Tensor | dict[str, torch.Tensor], action: torch.Tensor):
-        obs = self.input_filter(obs)
+    def forward(self, obs: torch.Tensor, action: torch.Tensor):
         if self.cfg.num_parallel > 1:
             obs = obs.expand(self.cfg.num_parallel, -1, -1)
             action = action.expand(self.cfg.num_parallel, -1, -1)
@@ -59,7 +53,6 @@ class ActorArchiConfig(BaseConfig):
     hidden_dim: int = 1024
     model: str = "simple"  # not used at the moment
     hidden_layers: int = 2
-    input_filter: NNFilter = IdentityInputFilterConfig()
 
     def build(self, obs_space, action_dim):
         return SimpleActor(obs_space, action_dim, self)
@@ -72,11 +65,8 @@ class SimpleActor(nn.Module):
         super().__init__()
         self.cfg = cfg
 
-        self.input_filter = cfg.input_filter.build(obs_space)
-        filtered_space = self.input_filter.output_space
-
-        assert len(filtered_space.shape) == 1, "obs_space must be 1D box"
-        obs_dim = filtered_space.shape[0]
+        assert len(obs_space.shape) == 1, "obs_space must be 1D box"
+        obs_dim = obs_space.shape[0]
 
         seq = [linear(obs_dim, cfg.hidden_dim), nn.ReLU()]
         for _ in range(cfg.hidden_layers - 1):
@@ -84,8 +74,7 @@ class SimpleActor(nn.Module):
         seq += [linear(cfg.hidden_dim, action_dim)]
         self.policy = nn.Sequential(*seq)
 
-    def forward(self, obs: torch.Tensor | dict[str, torch.Tensor], std):
-        obs = self.input_filter(obs)
+    def forward(self, obs: torch.Tensor, std):
         mu = torch.tanh(self.policy(obs))
         std = torch.ones_like(mu) * std
         return TruncatedNormal(mu, std)

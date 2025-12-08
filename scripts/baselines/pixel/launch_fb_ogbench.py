@@ -3,73 +3,68 @@
 # This source code is licensed under the CC BY-NC 4.0 license found in the
 # LICENSE file in the root directory of this source tree.
 
+import copy
 import dataclasses
-
 import tyro
-from exca.confdict import ConfDict
 
-from entry_points.train_offline import TrainConfig
 from metamotivo.envs.ogbench import ALL_TASKS
-from metamotivo.misc.launcher_utils import all_combinations_of_nested_dicts_for_sweep, launch_trials
+from metamotivo.misc.launcher_utils import all_combinations_of_nested_dicts_for_sweep, launch_trials, flatten
 
-BASE_CFG = ConfDict(
-    {
-        "num_train_steps": 1_000_000,
-        "eval_every_steps": 250_000,
-        "checkpoint_every_steps": 250_000,
-        "agent": {
-            "name": "FBFlowBCAgent",
-            "compile": True,
-            "model": {
-                "device": "cuda",
-                "obs_normalizer": {
-                    "normalizers": {
-                        "pixels": {
-                            "name": "RGBNormalizerConfig",
-                        }
-                    }
-                },
-                "archi": {
-                    "f": {"name": "ForwardArchi", "hidden_dim": 512, "hidden_layers": 2},
-                    "actor": {"name": "noise_conditioned_actor", "hidden_dim": 512, "hidden_layers": 2},
-                    "actor_vf": {"hidden_layers": 4, "hidden_dim": 512},
-                    "b": {"name": "BackwardArchi", "hidden_dim": 512, "hidden_layers": 4, "norm": True},
-                    "left_encoder": {"name": "BackwardArchi", "hidden_dim": 512, "hidden_layers": 0, "norm": True},
-                    "rgb_encoder": {
-                        "name": "drq",
-                        "feature_dim": 256,
-                        "input_filter": {"name": "DictInputFilterConfig", "key": "pixels"},
-                    },
-                    "augmentator": {
-                        "name": "random_shifts",
-                        "pad": 2,
-                        "input_filter": {"name": "DictInputFilterConfig", "key": "pixels"},
-                    },
-                    "L_dim": 256,
-                    "z_dim": 50,
-                    "norm_z": True,
-                },
-                "actor_encode_obs": False,
+BASE_CFG = {
+    "num_train_steps": 1_000_000,
+    "data": {
+        "name": "ogbench",
+        "domain": "cube-single-play-v0",
+        "obs_type": "pixels",
+        "buffer_type": "parallel",
+    },
+    "env": {
+        "name": "ogbench",
+        "domain": "cube-single-play-v0",
+        "task": "cube-single-play-singletask-task1-v0",
+        "obs_type": "pixels",
+        "frame_stack": 3,
+    },
+    "agent": {
+        "name": "FBFlowBCAgent",
+        "compile": True,
+        "model": {
+            "device": "cuda",
+            "obs_normalizer": {
+                "name": "RGBNormalizerConfig",
             },
-            "train": {
-                "batch_size": 256,
-                "discount": 0.99,
-                "lr_f": 1e-4,
-                "lr_b": 1e-4,
-                "lr_actor": 1e-4,
-                "ortho_coef": 1.0,
-                "train_goal_ratio": 0.5,
-                "f_target_tau": 0.005,
-                "b_target_tau": 0.005,
-                "fb_pessimism_penalty": 0,
-                "actor_pessimism_penalty": 0,
+            "archi": {
+                "f": {"name": "ForwardArchi", "hidden_dim": 512, "hidden_layers": 2},
+                "actor": {"name": "noise_conditioned_actor", "hidden_dim": 512, "hidden_layers": 2},
+                "actor_vf": {"hidden_layers": 4, "hidden_dim": 512},
+                "b": {"name": "BackwardArchi", "hidden_dim": 512, "hidden_layers": 4, "norm": True},
+                "left_encoder": {"name": "BackwardArchi", "hidden_dim": 512, "hidden_layers": 0, "norm": True},
+                "rgb_encoder": {
+                    "name": "drq",
+                    "feature_dim": 256,
+                },
+                "augmentator": {
+                    "name": "random_shifts",
+                    "pad": 2,
+                },
+                "L_dim": 256,
+                "z_dim": 50,
+                "norm_z": True,
             },
+            "actor_encode_obs": False,
         },
-    }
-)
+        "train": {
+            "batch_size": 256,
+            "discount": 0.99,
+            "ortho_coef": 1.0,
+            "f_target_tau": 0.005,
+            "b_target_tau": 0.005,
+        },
+    },
+}
 
 
-def antmaze_v40():
+def sweep_antmaze():
     conf = {
         "seed": [3917, 3502, 8948, 9460, 4729, 2226, 1744, 7742, 4501, 6341],
         "env.domain": [
@@ -86,7 +81,7 @@ def antmaze_v40():
     return conf
 
 
-def cube_v40():
+def sweep_cube():
     conf = {
         "seed": [3917, 3502, 8948, 9460, 4729, 2226, 1744, 7742, 4501, 6341],
         "env.domain": [
@@ -104,54 +99,31 @@ def cube_v40():
 
 @dataclasses.dataclass
 class LaunchArgs:
-    # Instead of launching the experiments, run the first sweep locally to test out the code
-    local: bool = False
-    # Print out the configs instead of running the experiments
-    dry: bool = False
+    # dataset and working paths
+    data_path: str = "/path/to/datasets"
+    workdir_root: str = "/path/to/workdir"
     # wandb config
     use_wandb: bool = False
-    wandb_ename: str | None = "unicorns"
-    wandb_gname: str | None = "fb"
-    wandb_pname: str | None = "replearn_ogbench_pixel_paper"
-    # to run sweeps
+    wandb_gname: str | None = "td_jepa"
+    wandb_ename: str | None = "td_jepa"
+    wandb_pname: str | None = "td_jepa"
+    # specify to run sweeps
     sweep_config: str | None = None
+    # instead of launching all experiments, only run the first one
+    first_only: bool = False
+    # print out the configs instead of running the experiments
+    dry: bool = False
+    # launch with slurm
+    slurm: bool = False
+    # launch with exca
+    exca: bool = False
 
 
 def main(args: LaunchArgs):
-    # Get default slurm arguments and location to store results
-    exca_infra_args = get_default_exca_infra_args_for_current_cluster()
-    workdir_root = get_workdir_root(args.wandb_pname, args.wandb_gname)
-    # Move exca folder next to the run outputs
-    exca_infra_args["folder"] = str(workdir_root / "_exca")
-    # make sure we have enough resources or the parallel buffer may be slow
-    exca_infra_args["mem_gb"] = max(int(exca_infra_args["mem_gb"]), 100)
-    exca_infra_args["cpus_per_task"] = max(int(exca_infra_args["cpus_per_task"]), 16)
 
-    base_config = BASE_CFG.copy()
-    base_config.update(
-        {
-            "data": {
-                "name": "ogbench",
-                "dataset_root": "/private/home/marbaga/motivo/datasets/processed_flat",
-                "domain": "cube-single-play-v0",
-                "obs_type": "pixels",
-                "buffer_type": "parallel",
-            },
-            "work_dir": str(workdir_root),
-            "use_wandb": args.use_wandb,
-            "wandb_ename": args.wandb_ename,
-            "wandb_pname": args.wandb_pname,
-            "wandb_gname": args.wandb_gname,
-            "infra": exca_infra_args,
-            "env": {
-                "name": "ogbench",
-                "obs_type": "pixels",
-                "frame_stack": 3,
-                "domain": "cube-single-play-v0",
-                "task": "cube-single-play-singletask-task1-v0",
-            },
-        }
-    )
+    base_cfg = copy.deepcopy(BASE_CFG)
+    base_cfg["work_dir"] = args.workdir_root
+    base_cfg["data"]["dataset_root"] = args.data_path
 
     if args.sweep_config is None:
         sweep_params = {}
@@ -161,33 +133,43 @@ def main(args: LaunchArgs):
         else:
             raise RuntimeError("Unknown sweep configuration")
 
-    base_config = TrainConfig(**base_config)
-    trials = all_combinations_of_nested_dicts_for_sweep(sweep_params)
-    for i, trial in enumerate(trials):
-        trial["work_dir"] = f"{str(workdir_root)}/{i}"
-        trial["data.domain"] = trial["env.domain"]
-        trial["env"]["task"] = ALL_TASKS[trial["env.domain"]][0]
-        extra_kwargs = {
-            "env": {
-                "name": "ogbench",
-                "domain": trial["env.domain"],
-                "task": ALL_TASKS[trial["env.domain"]][0],
-                "obs_type": "pixels",
-                "frame_stack": base_config["env"]["frame_stack"],
-            },
-            "tasks": ALL_TASKS[trial["env.domain"]],
-            "num_envs": 1,
-            "num_episodes": 10,
-            "num_inference_samples": 10_000,
-        }
-        trial["evaluations"] = [
-            extra_kwargs | {"name": "ogbench_reward_eval", "name_in_logs": "reward_shift", "shift_reward": 1},
-        ]
-    launch_trials(base_config, trials, args.local, args.dry)
+    trials = []
+    for i, trial in enumerate(all_combinations_of_nested_dicts_for_sweep(sweep_params)):
+        trial = flatten(trial)
+        trial.update(flatten(
+            {
+                "use_wandb": args.use_wandb,
+                "wandb_ename": args.wandb_ename,
+                "wandb_pname": args.wandb_pname,
+                "wandb_gname": args.wandb_gname,
+                "work_dir": f"{args.workdir_root}/{i}",
+                "data.domain": trial["env.domain"],
+                "env.task": ALL_TASKS[trial["env.domain"]][0],
+                "evaluations": [
+                    {
+                        "name": "ogbench_reward_eval",
+                        "shift_reward": 1,
+                        "env": {
+                            "name": "ogbench",
+                            "domain": trial["env.domain"],
+                            "task": ALL_TASKS[trial["env.domain"]][0],
+                            "obs_type": "pixels",
+                            "frame_stack": base_cfg["env"]["frame_stack"],
+                        },
+                        "tasks": ALL_TASKS[trial["env.domain"]],
+                        "num_episodes": 10,
+                        "num_inference_samples": 10_000,
+                    },
+                ],
+            }
+        ))
+        trials.append(trial)
+
+    launch_trials(base_cfg, trials, args.first_only, args.dry, args.slurm, args.exca)
 
 
 if __name__ == "__main__":
     args = tyro.cli(LaunchArgs)
     main(args)
-    # uv run -m scripts.pixel.launch_fb_ogbench --wandb_gname fb_antmaze_v10 --sweep_config antmaze_v40 --use_wandb
-    # uv run -m scripts.pixel.launch_fb_ogbench --wandb_gname fb_cube_v10 --sweep_config cube_v40 --use_wandb
+    # uv run -m scripts.baselines.pixel.launch_fb_ogbench --use_wandb --wandb_gname fb_antmaze_pixel --data_path datasets --workdir_root results --sweep_config sweep_antmaze
+    # uv run -m scripts.baselines.pixel.launch_fb_ogbench --use_wandb --wandb_gname fb_cube_pixel --data_path datasets --workdir_root results --sweep_config sweep_cube

@@ -27,7 +27,6 @@ class FBFlowBCModelArchiConfig(FBModelArchiConfig):
 class FBFlowBCModelConfig(FBModelConfig):
     name: tp.Literal["FBFlowBCModel"] = "FBFlowBCModel"
     archi: FBFlowBCModelArchiConfig = FBFlowBCModelArchiConfig()
-    # TODO(team): actor_std is not used, avoid extending FBModelConfig?
 
     @property
     def object_class(self):
@@ -53,7 +52,7 @@ class FBFlowBCModel(FBModel):
         self.to(self.device)
 
     @torch.no_grad()
-    def actor(self, obs: torch.Tensor | dict[str, torch.Tensor], z: torch.Tensor, **kwargs) -> torch.Tensor:
+    def actor(self, obs: torch.Tensor, z: torch.Tensor, **kwargs) -> torch.Tensor:
         with autocast(device_type=self.device, dtype=self.amp_dtype, enabled=self.cfg.amp):
             obs = self._fw_encoder(self._normalize(obs))
             obs = self._left_encoder(obs) if self.cfg.actor_encode_obs else obs
@@ -61,7 +60,7 @@ class FBFlowBCModel(FBModel):
             actions = self._actor(obs, z, noises)
         return actions
 
-    def act(self, obs: torch.Tensor | dict[str, torch.Tensor], z: torch.Tensor, mean: bool = True) -> torch.Tensor:
+    def act(self, obs: torch.Tensor, z: torch.Tensor, mean: bool = True) -> torch.Tensor:
         del mean  # not used
         return self.actor(obs, z)
 

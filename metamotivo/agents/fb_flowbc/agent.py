@@ -45,14 +45,14 @@ class FBFlowBCAgent(FBAgent):
             weight_decay=self.cfg.train.weight_decay,
         )
 
-    def sample_action_from_norm_obs(self, obs: torch.Tensor | dict[str, torch.Tensor], z: torch.Tensor) -> torch.Tensor:
+    def sample_action_from_norm_obs(self, obs: torch.Tensor, z: torch.Tensor) -> torch.Tensor:
         noises = torch.randn((z.shape[0], self.action_dim), device=z.device, dtype=z.dtype)
         action = self._model._actor(obs, z, noises)
         return action
 
     def update_actor(
         self,
-        obs: torch.Tensor | dict[str, torch.Tensor],
+        obs: torch.Tensor,
         action: torch.Tensor,
         z: torch.Tensor,
         clip_grad_norm: float | None,
@@ -106,7 +106,7 @@ class FBFlowBCAgent(FBAgent):
         }
         return metrics
 
-    def compute_flow_actions(self, obs: torch.Tensor | dict[str, torch.Tensor], noises: torch.Tensor) -> torch.Tensor:
+    def compute_flow_actions(self, obs: torch.Tensor, noises: torch.Tensor) -> torch.Tensor:
         actions = noises
         for i in range(self.cfg.train.flow_steps):
             t = torch.ones((noises.shape[0], 1), device=noises.device) * i / self.cfg.train.flow_steps
