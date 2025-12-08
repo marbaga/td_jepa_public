@@ -10,7 +10,8 @@ os.environ["MUJOCO_GL"] = "egl"  # for headless rendering
 
 import torch
 
-torch.set_float32_matmul_precision("high")
+torch.backends.cudnn.conv.fp32_precision = 'tf32'
+torch.backends.cuda.matmul.fp32_precision = 'tf32'
 torch._inductor.config.autotune_local_cache = False
 
 import json
