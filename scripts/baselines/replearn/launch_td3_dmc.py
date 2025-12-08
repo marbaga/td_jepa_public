@@ -91,7 +91,7 @@ class LaunchArgs:
     # wandb config
     use_wandb: bool = False
     wandb_gname: str | None = "td_jepa"
-    wandb_ename: str | None = "td_jepa"
+    wandb_ename: str | None = None
     wandb_pname: str | None = "td_jepa"
     # specify to run sweeps
     sweep_config: str | None = None
