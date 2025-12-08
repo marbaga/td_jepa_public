@@ -16,19 +16,15 @@ from metamotivo.base_model import BaseModel, BaseModelConfig
 
 from ...base_model import load_model, save_model
 from ...nn_models import (
+    AugmentatorArchiConfig,
     BackwardArchiConfig,
+    DrQEncoderArchiConfig,
     ForwardArchiConfig,
     IdentityNNConfig,
     SimpleActorArchiConfig,
     eval_mode,
 )
 from ...normalizers import AVAILABLE_NORMALIZERS, IdentityNormalizerConfig
-from ...pixel_models import (
-    AugmentatorArchiConfig,
-    DreamerEncoderArchiConfig,
-    DrQEncoderArchiConfig,
-    ImpalaEncoderArchiConfig,
-)
 
 
 class SFModelArchiConfig(BaseConfig):
@@ -40,7 +36,7 @@ class SFModelArchiConfig(BaseConfig):
     actor: SimpleActorArchiConfig = pydantic.Field(SimpleActorArchiConfig(), discriminator="name")
     left_encoder: BackwardArchiConfig | IdentityNNConfig = pydantic.Field(IdentityNNConfig(), discriminator="name")
     # a shared image encoder config that is used for all networks
-    rgb_encoder: IdentityNNConfig | DrQEncoderArchiConfig | DreamerEncoderArchiConfig | ImpalaEncoderArchiConfig = pydantic.Field(
+    rgb_encoder: IdentityNNConfig | DrQEncoderArchiConfig = pydantic.Field(
         IdentityNNConfig(), discriminator="name"
     )
     augmentator: IdentityNNConfig | AugmentatorArchiConfig = pydantic.Field(IdentityNNConfig(), discriminator="name")

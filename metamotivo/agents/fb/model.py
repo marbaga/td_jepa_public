@@ -17,19 +17,15 @@ from ...base import BaseConfig
 from ...base_model import BaseModel, BaseModelConfig, load_model, save_model
 from ...nn_models import (
     ActorArchiConfig,
+    AugmentatorArchiConfig,
     BackwardArchiConfig,
+    DrQEncoderArchiConfig,
     ForwardArchiConfig,
     IdentityNNConfig,
     SimpleActorArchiConfig,
     eval_mode,
 )
 from ...normalizers import AVAILABLE_NORMALIZERS, IdentityNormalizerConfig
-from ...pixel_models import (
-    AugmentatorArchiConfig,
-    DreamerEncoderArchiConfig,
-    DrQEncoderArchiConfig,
-    ImpalaEncoderArchiConfig,
-)
 
 
 class FBModelArchiConfig(BaseConfig):
@@ -45,7 +41,7 @@ class FBModelArchiConfig(BaseConfig):
     ) = pydantic.Field(SimpleActorArchiConfig(), discriminator="name")
     left_encoder: BackwardArchiConfig | IdentityNNConfig = pydantic.Field(IdentityNNConfig(), discriminator="name")
     # same config used for both the fw and bw rgb encoders
-    rgb_encoder: IdentityNNConfig | DrQEncoderArchiConfig | DreamerEncoderArchiConfig | ImpalaEncoderArchiConfig = pydantic.Field(
+    rgb_encoder: IdentityNNConfig | DrQEncoderArchiConfig = pydantic.Field(
         IdentityNNConfig(), discriminator="name"
     )
     augmentator: IdentityNNConfig | AugmentatorArchiConfig = pydantic.Field(IdentityNNConfig(), discriminator="name")

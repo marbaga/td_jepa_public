@@ -12,16 +12,15 @@ import torch
 from metamotivo.base import BaseConfig
 from metamotivo.base_model import BaseModel, BaseModelConfig, load_model, save_model
 
-from ...nn_models import IdentityNNConfig, eval_mode
+from ...nn_models import AugmentatorArchiConfig, DrQEncoderArchiConfig, IdentityNNConfig, eval_mode
 from ...normalizers import AVAILABLE_NORMALIZERS, IdentityNormalizerConfig
-from ...pixel_models import AugmentatorArchiConfig, DreamerEncoderArchiConfig, DrQEncoderArchiConfig, ImpalaEncoderArchiConfig
 from .nn_models import ActorArchiConfig, CriticArchiConfig
 
 
 class TD3ModelArchiConfig(BaseConfig):
     actor: ActorArchiConfig = ActorArchiConfig()
     critic: CriticArchiConfig = CriticArchiConfig()
-    rgb_encoder: IdentityNNConfig | DrQEncoderArchiConfig | DreamerEncoderArchiConfig | ImpalaEncoderArchiConfig = pydantic.Field(
+    rgb_encoder: IdentityNNConfig | DrQEncoderArchiConfig = pydantic.Field(
         IdentityNNConfig(), discriminator="name"
     )
     augmentator: IdentityNNConfig | AugmentatorArchiConfig = pydantic.Field(IdentityNNConfig(), discriminator="name")
