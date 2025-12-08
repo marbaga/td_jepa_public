@@ -82,16 +82,16 @@ BASE_AGENT_CFG = {
         "agent.model.center_features": True,
         "data.future": 0.99,
     },
-    "spr": {
-        "agent.name": "SPRAgent",
+    "byol": {
+        "agent.name": "BYOLAgent",
         "agent.train.lr_predictor": 1e-4,
         "agent.train.ortho_coef": 0.1,
         "agent.train.multi_step": False,
         "agent.model.archi.predictor.hidden_dim": 1024,
         "agent.model.archi.predictor.hidden_layers": 1,
     },
-    "spr-multi": {
-        "agent.name": "SPRAgent",
+    "byol-gamma": {
+        "agent.name": "BYOLAgent",
         "agent.train.lr_predictor": 1e-4,
         "agent.train.ortho_coef": 0.1,
         "agent.train.multi_step": True,
@@ -110,7 +110,7 @@ BASE_AGENT_CFG = {
 }
 
 
-def sweep_spr_walker():
+def sweep_byol_walker():
     conf = {
         "seed": [3917, 3502, 8948, 9460, 4729],
         "env.domain": ["walker"],
@@ -122,7 +122,7 @@ def sweep_spr_walker():
     return conf
 
 
-def sweep_spr_cheetah():
+def sweep_byol_cheetah():
     conf = {
         "seed": [3917, 3502, 8948, 9460, 4729],
         "env.domain": ["cheetah"],
@@ -134,7 +134,7 @@ def sweep_spr_cheetah():
     return conf
 
 
-def sweep_spr_quadruped():
+def sweep_byol_quadruped():
     conf = {
         "seed": [3917, 3502, 8948, 9460, 4729],
         "env.domain": ["quadruped"],
@@ -146,7 +146,7 @@ def sweep_spr_quadruped():
     return conf
 
 
-def sweep_spr_pointmass():
+def sweep_byol_pointmass():
     conf = {
         "seed": [3917, 3502, 8948, 9460, 4729],
         "env.domain": ["pointmass"],
@@ -343,15 +343,15 @@ def main(args: LaunchArgs):
 if __name__ == "__main__":
     args = tyro.cli(LaunchArgs)
     main(args)
-    # uv run -m scripts.baselines.replearn.launch_sf_dmc --use_wandb --wandb_gname spr_walker_proprio --data_path datasets --workdir_root results --sweep_config sweep_spr_walker --sf_agent spr
-    # uv run -m scripts.baselines.replearn.launch_sf_dmc --use_wandb --wandb_gname spr_cheetah_proprio --data_path datasets --workdir_root results --sweep_config sweep_spr_cheetah --sf_agent spr
-    # uv run -m scripts.baselines.replearn.launch_sf_dmc --use_wandb --wandb_gname spr_quadruped_proprio --data_path datasets --workdir_root results --sweep_config sweep_spr_quadruped --sf_agent spr
-    # uv run -m scripts.baselines.replearn.launch_sf_dmc --use_wandb --wandb_gname spr_pointmass_proprio --data_path datasets --workdir_root results --sweep_config sweep_spr_pointmass --sf_agent spr
+    # uv run -m scripts.baselines.replearn.launch_sf_dmc --use_wandb --wandb_gname byol_walker_proprio --data_path datasets --workdir_root results --sweep_config sweep_byol_walker --sf_agent byol
+    # uv run -m scripts.baselines.replearn.launch_sf_dmc --use_wandb --wandb_gname byol_cheetah_proprio --data_path datasets --workdir_root results --sweep_config sweep_byol_cheetah --sf_agent byol
+    # uv run -m scripts.baselines.replearn.launch_sf_dmc --use_wandb --wandb_gname byol_quadruped_proprio --data_path datasets --workdir_root results --sweep_config sweep_byol_quadruped --sf_agent byol
+    # uv run -m scripts.baselines.replearn.launch_sf_dmc --use_wandb --wandb_gname byol_pointmass_proprio --data_path datasets --workdir_root results --sweep_config sweep_byol_pointmass --sf_agent byol
 
-    # uv run -m scripts.baselines.replearn.launch_sf_dmc --use_wandb --wandb_gname spr_multi_walker_proprio --data_path datasets --workdir_root results --sweep_config sweep_spr_walker --sf_agent spr-multi
-    # uv run -m scripts.baselines.replearn.launch_sf_dmc --use_wandb --wandb_gname spr_multi_cheetah_proprio --data_path datasets --workdir_root results --sweep_config sweep_spr_cheetah --sf_agent spr-multi
-    # uv run -m scripts.baselines.replearn.launch_sf_dmc --use_wandb --wandb_gname spr_multi_quadruped_proprio --data_path datasets --workdir_root results --sweep_config sweep_spr_quadruped --sf_agent spr-multi
-    # uv run -m scripts.baselines.replearn.launch_sf_dmc --use_wandb --wandb_gname spr_multi_pointmass_proprio --data_path datasets --workdir_root results --sweep_config sweep_spr_pointmass --sf_agent spr-multi
+    # uv run -m scripts.baselines.replearn.launch_sf_dmc --use_wandb --wandb_gname byol_gamma_walker_proprio --data_path datasets --workdir_root results --sweep_config sweep_byol_walker --sf_agent byol-gamma
+    # uv run -m scripts.baselines.replearn.launch_sf_dmc --use_wandb --wandb_gname byol_gamma_cheetah_proprio --data_path datasets --workdir_root results --sweep_config sweep_byol_cheetah --sf_agent byol-gamma
+    # uv run -m scripts.baselines.replearn.launch_sf_dmc --use_wandb --wandb_gname byol_gamma_quadruped_proprio --data_path datasets --workdir_root results --sweep_config sweep_byol_quadruped --sf_agent byol-gamma
+    # uv run -m scripts.baselines.replearn.launch_sf_dmc --use_wandb --wandb_gname byol_gamma_pointmass_proprio --data_path datasets --workdir_root results --sweep_config sweep_byol_pointmass --sf_agent byol-gamma
 
     # uv run -m scripts.baselines.replearn.launch_sf_dmc --use_wandb --wandb_gname hilp_walker_proprio --data_path datasets --workdir_root results --sweep_config sweep_hilp_walker --sf_agent hilp
     # uv run -m scripts.baselines.replearn.launch_sf_dmc --use_wandb --wandb_gname hilp_cheetah_proprio --data_path datasets --workdir_root results --sweep_config sweep_hilp_cheetah --sf_agent hilp

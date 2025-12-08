@@ -9,8 +9,8 @@ from metamotivo.agents.fb.agent import FBAgentConfig
 from metamotivo.agents.fb_flowbc.agent import FBFlowBCAgentConfig
 from metamotivo.agents.rldp.agent import RLDPAgentConfig
 from metamotivo.agents.rldp_flowbc.agent import RLDPFlowBCAgentConfig
-from metamotivo.agents.spr.agent import SPRAgentConfig
-from metamotivo.agents.spr_flowbc.agent import SPRFlowBCAgentConfig
+from metamotivo.agents.byol.agent import BYOLAgentConfig
+from metamotivo.agents.byol_flowbc.agent import BYOLFlowBCAgentConfig
 from metamotivo.agents.hilp.agent import HilpAgentConfig
 from metamotivo.agents.hilp_flowbc.agent import HilpFlowBCAgentConfig
 from metamotivo.agents.laplacian.agent import LaplacianAgentConfig
@@ -24,7 +24,7 @@ Agent = (
     TDJEPAAgentConfig | TDJEPAFlowBCAgentConfig
     | FBAgentConfig | FBFlowBCAgentConfig
     | RLDPAgentConfig | RLDPFlowBCAgentConfig
-    | SPRAgentConfig | SPRFlowBCAgentConfig
+    | BYOLAgentConfig | BYOLFlowBCAgentConfig
     | HilpAgentConfig | HilpFlowBCAgentConfig
     | LaplacianAgentConfig | LaplacianFlowBCAgentConfig
     | ICVFAgentConfig | ICVFFlowBCAgentConfig

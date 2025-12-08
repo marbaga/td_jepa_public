@@ -87,16 +87,16 @@ BASE_AGENT_CFG = {
         "agent.model.center_features": True,
         "data.future": 0.99,
     },
-    "spr": {
-        "agent.name": "SPRFlowBCAgent",
+    "byol": {
+        "agent.name": "BYOLFlowBCAgent",
         "agent.train.lr_predictor": 1e-4,
         "agent.train.ortho_coef": 0.1,
         "agent.train.multi_step": False,
         "agent.model.archi.predictor.hidden_dim": 512,
         "agent.model.archi.predictor.hidden_layers": 2,
     },
-    "spr-multi": {
-        "agent.name": "SPRFlowBCAgent",
+    "byol-gamma": {
+        "agent.name": "BYOLFlowBCAgent",
         "agent.train.lr_predictor": 1e-4,
         "agent.train.ortho_coef": 0.1,
         "agent.train.multi_step": True,
@@ -117,7 +117,7 @@ BASE_AGENT_CFG = {
 }
 
 
-def spr_sweep_antmaze():
+def byol_sweep_antmaze():
     conf = {
         "seed": [3917, 3502, 8948, 9460, 4729, 2226, 1744, 7742, 4501, 6341],
         "env.domain": [
@@ -168,7 +168,7 @@ def laplacian_sweep_antmaze():
     return conf
 
 
-def spr_sweep_cube():
+def byol_sweep_cube():
     conf = {
         "seed": [3917, 3502, 8948, 9460, 4729, 2226, 1744, 7742, 4501, 6341],
         "env.domain": [
@@ -303,11 +303,11 @@ def main(args: LaunchArgs):
 if __name__ == "__main__":
     args = tyro.cli(LaunchArgs)
     main(args)
-    # uv run -m scripts.baselines.replearn.launch_sf_ogbench --use_wandb --wandb_gname spr_antmaze_proprio --data_path datasets --workdir_root results --sweep_config sweep_spr_antmaze --sf_agent spr
-    # uv run -m scripts.baselines.replearn.launch_sf_ogbench --use_wandb --wandb_gname spr_cube_proprio --data_path datasets --workdir_root results --sweep_config sweep_spr_cube --sf_agent spr
+    # uv run -m scripts.baselines.replearn.launch_sf_ogbench --use_wandb --wandb_gname byol_antmaze_proprio --data_path datasets --workdir_root results --sweep_config sweep_byol_antmaze --sf_agent byol
+    # uv run -m scripts.baselines.replearn.launch_sf_ogbench --use_wandb --wandb_gname byol_cube_proprio --data_path datasets --workdir_root results --sweep_config sweep_byol_cube --sf_agent byol
 
-    # uv run -m scripts.baselines.replearn.launch_sf_ogbench --use_wandb --wandb_gname spr_multi_antmaze_proprio --data_path datasets --workdir_root results --sweep_config sweep_spr_antmaze --sf_agent spr-multi
-    # uv run -m scripts.baselines.replearn.launch_sf_ogbench --use_wandb --wandb_gname spr_multi_cube_proprio --data_path datasets --workdir_root results --sweep_config sweep_spr_cube --sf_agent spr-multi
+    # uv run -m scripts.baselines.replearn.launch_sf_ogbench --use_wandb --wandb_gname byol_gamma_antmaze_proprio --data_path datasets --workdir_root results --sweep_config sweep_byol_antmaze --sf_agent byol-gamma
+    # uv run -m scripts.baselines.replearn.launch_sf_ogbench --use_wandb --wandb_gname byol_gamma_cube_proprio --data_path datasets --workdir_root results --sweep_config sweep_byol_cube --sf_agent byol-gamma
 
     # uv run -m scripts.baselines.replearn.launch_sf_ogbench --use_wandb --wandb_gname hilp_antmaze_proprio --data_path datasets --workdir_root results --sweep_config sweep_hilp_antmaze --sf_agent hilp
     # uv run -m scripts.baselines.replearn.launch_sf_ogbench --use_wandb --wandb_gname hilp_cube_proprio --data_path datasets --workdir_root results --sweep_config sweep_hilp_cube --sf_agent hilp

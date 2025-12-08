@@ -13,26 +13,26 @@ from ...nn_models import VForwardArchiConfig
 from ..sf.model import SFModel, SFModelArchiConfig, SFModelConfig
 
 
-class SPRModelArchiConfig(SFModelArchiConfig):
+class BYOLModelArchiConfig(SFModelArchiConfig):
     predictor: VForwardArchiConfig = VForwardArchiConfig()
 
 
-class SPRModelConfig(SFModelConfig):
-    name: tp.Literal["SPRModel"] = "SPRModel"
-    archi: SPRModelArchiConfig = SPRModelArchiConfig()
+class BYOLModelConfig(SFModelConfig):
+    name: tp.Literal["BYOLModel"] = "BYOLModel"
+    archi: BYOLModelArchiConfig = BYOLModelArchiConfig()
 
     @property
     def object_class(self):
-        return SPRModel
+        return BYOLModel
 
 
-class SPRModel(SFModel):
-    config_class = SPRModelConfig
+class BYOLModel(SFModel):
+    config_class = BYOLModelConfig
 
-    def __init__(self, obs_space, action_dim, cfg: SPRModelConfig):
+    def __init__(self, obs_space, action_dim, cfg: BYOLModelConfig):
         super().__init__(obs_space, action_dim, cfg)
 
-        arch: SPRModelArchiConfig = self.cfg.archi
+        arch: BYOLModelArchiConfig = self.cfg.archi
         z_space = gymnasium.spaces.Box(low=-np.inf, high=np.inf, shape=(arch.z_dim,), dtype=np.float32)
         self._predictor = arch.predictor.build(z_space, action_dim, output_dim=arch.z_dim)
 
@@ -42,7 +42,7 @@ class SPRModel(SFModel):
         self.to(self.device)
 
     @classmethod
-    def load(cls, path: str, device: str | None = None, strict: bool = True, build_kwargs: dict[str, tp.Any] | None = None) -> "SPRModel":
+    def load(cls, path: str, device: str | None = None, strict: bool = True, build_kwargs: dict[str, tp.Any] | None = None) -> "BYOLModel":
         return load_model(path, device, strict=strict, config_class=cls.config_class, build_kwargs=build_kwargs)
 
     def save(self, output_folder: str) -> None:

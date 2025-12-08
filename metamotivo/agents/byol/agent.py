@@ -8,10 +8,10 @@ from typing import Dict, Literal
 import torch
 
 from ..sf.agent import SFAgent, SFAgentConfig, SFAgentTrainConfig
-from .model import SPRModelConfig
+from .model import BYOLModelConfig
 
 
-class SPRAgentTrainConfig(SFAgentTrainConfig):
+class BYOLAgentTrainConfig(SFAgentTrainConfig):
     lr_predictor: float = 1e-4
     ortho_coef: float = 1.0
     # if True, sample future obs from the successor distribution
@@ -19,18 +19,18 @@ class SPRAgentTrainConfig(SFAgentTrainConfig):
     multi_step: bool = False
 
 
-class SPRAgentConfig(SFAgentConfig):
-    name: Literal["SPRAgent"] = "SPRAgent"
-    model: SPRModelConfig
-    train: SPRAgentTrainConfig
+class BYOLAgentConfig(SFAgentConfig):
+    name: Literal["BYOLAgent"] = "BYOLAgent"
+    model: BYOLModelConfig
+    train: BYOLAgentTrainConfig
 
     @property
     def object_class(self):
-        return SPRAgent
+        return BYOLAgent
 
 
-class SPRAgent(SFAgent):
-    config_class = SPRAgentConfig
+class BYOLAgent(SFAgent):
+    config_class = BYOLAgentConfig
 
     @property
     def optimizer_dict(self):
