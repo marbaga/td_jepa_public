@@ -119,7 +119,6 @@ class FBAgent:
         self.off_diag = 1 - torch.eye(self.cfg.train.batch_size, self.cfg.train.batch_size, device=self.device)
         self.off_diag_sum = self.off_diag.sum()
 
-
     def setup_compile(self):
         print(f"compile {self.cfg.compile}")
         if self.cfg.compile:
@@ -127,7 +126,7 @@ class FBAgent:
             print(f"compiling with mode '{mode}'")
             self.update_fb = torch.compile(self.update_fb, mode=mode)  # use fullgraph=True to debug for graph breaks
             self.update_actor = torch.compile(self.update_actor, mode=mode)  # use fullgraph=True to debug for graph breaks
-            # feel free to re-enable compilation if https://github.com/pytorch/pytorch/issues/166604 is resolved 
+            # feel free to re-enable compilation if https://github.com/pytorch/pytorch/issues/166604 is resolved
             # self.sample_mixed_z = torch.compile(self.sample_mixed_z, mode=mode, fullgraph=True)
             self.aug = torch.compile(self.aug, mode=mode)
             self.enc = torch.compile(self.enc, mode=mode)

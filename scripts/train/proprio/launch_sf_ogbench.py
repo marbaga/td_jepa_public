@@ -6,10 +6,11 @@
 import copy
 import dataclasses
 from typing import Literal
+
 import tyro
 
 from metamotivo.envs.ogbench import ALL_TASKS
-from metamotivo.misc.launcher_utils import all_combinations_of_nested_dicts_for_sweep, launch_trials, flatten, unflatten
+from metamotivo.misc.launcher_utils import all_combinations_of_nested_dicts_for_sweep, flatten, launch_trials, unflatten
 
 BASE_CFG = {
     "num_train_steps": 1_000_000,
@@ -243,7 +244,6 @@ class LaunchArgs:
 
 
 def main(args: LaunchArgs):
-
     base_cfg = copy.deepcopy(BASE_CFG)
     base_cfg["work_dir"] = args.workdir_root
     base_cfg["data"]["dataset_root"] = args.data_path
@@ -270,31 +270,33 @@ def main(args: LaunchArgs):
     trials = []
     for i, trial in enumerate(all_combinations_of_nested_dicts_for_sweep(sweep_params)):
         trial = flatten(trial)
-        trial.update(flatten(
-            {
-                "use_wandb": args.use_wandb,
-                "wandb_ename": args.wandb_ename,
-                "wandb_pname": args.wandb_pname,
-                "wandb_gname": args.wandb_gname,
-                "work_dir": f"{args.workdir_root}/{i}",
-                "data.domain": trial["env.domain"],
-                "env.task": ALL_TASKS[trial["env.domain"]][0],
-                "evaluations": [
-                    {
-                        "name": "ogbench_reward_eval",
-                        "shift_reward": 1,
-                        "env": {
-                            "name": "ogbench",
-                            "domain": trial["env.domain"],
-                            "task": ALL_TASKS[trial["env.domain"]][0],
+        trial.update(
+            flatten(
+                {
+                    "use_wandb": args.use_wandb,
+                    "wandb_ename": args.wandb_ename,
+                    "wandb_pname": args.wandb_pname,
+                    "wandb_gname": args.wandb_gname,
+                    "work_dir": f"{args.workdir_root}/{i}",
+                    "data.domain": trial["env.domain"],
+                    "env.task": ALL_TASKS[trial["env.domain"]][0],
+                    "evaluations": [
+                        {
+                            "name": "ogbench_reward_eval",
+                            "shift_reward": 1,
+                            "env": {
+                                "name": "ogbench",
+                                "domain": trial["env.domain"],
+                                "task": ALL_TASKS[trial["env.domain"]][0],
+                            },
+                            "tasks": ALL_TASKS[trial["env.domain"]],
+                            "num_episodes": 10,
+                            "num_inference_samples": 10_000,
                         },
-                        "tasks": ALL_TASKS[trial["env.domain"]],
-                        "num_episodes": 10,
-                        "num_inference_samples": 10_000,
-                    },
-                ],
-            }
-        ))
+                    ],
+                }
+            )
+        )
         trials.append(trial)
 
     launch_trials(base_cfg, trials, args.first_only, args.dry, args.slurm, args.exca)

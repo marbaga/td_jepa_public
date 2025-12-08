@@ -23,7 +23,8 @@ def extract(
         dataset_path = Path(dataset_path) / (env_name + ".npz")
     else:
         # download and load from default location
-        from ogbench.utils import make_env_and_datasets, DEFAULT_DATASET_DIR
+        from ogbench.utils import DEFAULT_DATASET_DIR, make_env_and_datasets
+
         make_env_and_datasets(env_name)
         dataset_path = Path(DEFAULT_DATASET_DIR).expanduser() / (env_name + ".npz")
 

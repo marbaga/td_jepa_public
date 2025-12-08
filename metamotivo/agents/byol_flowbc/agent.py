@@ -5,8 +5,8 @@
 
 import typing as tp
 
-from ..sf_flowbc.agent import SFFlowBCAgentConfig, SFFlowBCAgentMixin, SFFlowBCAgentTrainConfig
 from ..byol.agent import BYOLAgent, BYOLAgentConfig, BYOLAgentTrainConfig
+from ..sf_flowbc.agent import SFFlowBCAgentConfig, SFFlowBCAgentMixin, SFFlowBCAgentTrainConfig
 from .model import BYOLFlowBCModelConfig
 
 

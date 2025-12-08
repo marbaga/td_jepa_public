@@ -35,15 +35,10 @@ class FBModelArchiConfig(BaseConfig):
     f: ForwardArchiConfig = pydantic.Field(ForwardArchiConfig(), discriminator="name")
     b: BackwardArchiConfig = pydantic.Field(BackwardArchiConfig(), discriminator="name")
     # Because of the "name" attribute, these two can be chosen between via strings easily
-    actor: (
-        ActorArchiConfig
-        | SimpleActorArchiConfig
-    ) = pydantic.Field(SimpleActorArchiConfig(), discriminator="name")
+    actor: ActorArchiConfig | SimpleActorArchiConfig = pydantic.Field(SimpleActorArchiConfig(), discriminator="name")
     left_encoder: BackwardArchiConfig | IdentityNNConfig = pydantic.Field(IdentityNNConfig(), discriminator="name")
     # same config used for both the fw and bw rgb encoders
-    rgb_encoder: IdentityNNConfig | DrQEncoderArchiConfig = pydantic.Field(
-        IdentityNNConfig(), discriminator="name"
-    )
+    rgb_encoder: IdentityNNConfig | DrQEncoderArchiConfig = pydantic.Field(IdentityNNConfig(), discriminator="name")
     augmentator: IdentityNNConfig | AugmentatorArchiConfig = pydantic.Field(IdentityNNConfig(), discriminator="name")
 
 
@@ -51,9 +46,7 @@ class FBModelConfig(BaseModelConfig):
     name: tp.Literal["FBModel"] = "FBModel"
 
     archi: FBModelArchiConfig = FBModelArchiConfig()
-    obs_normalizer: AVAILABLE_NORMALIZERS = pydantic.Field(
-        IdentityNormalizerConfig(), discriminator="name"
-    )
+    obs_normalizer: AVAILABLE_NORMALIZERS = pydantic.Field(IdentityNormalizerConfig(), discriminator="name")
     inference_batch_size: int = 500_000
     seq_length: int = 1
     actor_std: float = 0.2
@@ -138,9 +131,7 @@ class FBModel(BaseModel):
             return dist.mean.float()
         return dist.sample().float()
 
-    def reward_inference(
-        self, next_obs: torch.Tensor, reward: torch.Tensor, weight: torch.Tensor | None = None
-    ) -> torch.Tensor:
+    def reward_inference(self, next_obs: torch.Tensor, reward: torch.Tensor, weight: torch.Tensor | None = None) -> torch.Tensor:
         with autocast(device_type=self.device, dtype=self.amp_dtype, enabled=self.cfg.amp):
             batch_size = next_obs.shape[0]
             num_batches = int(np.ceil(batch_size / self.cfg.inference_batch_size))

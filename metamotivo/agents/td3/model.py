@@ -20,9 +20,7 @@ from .nn_models import ActorArchiConfig, CriticArchiConfig
 class TD3ModelArchiConfig(BaseConfig):
     actor: ActorArchiConfig = ActorArchiConfig()
     critic: CriticArchiConfig = CriticArchiConfig()
-    rgb_encoder: IdentityNNConfig | DrQEncoderArchiConfig = pydantic.Field(
-        IdentityNNConfig(), discriminator="name"
-    )
+    rgb_encoder: IdentityNNConfig | DrQEncoderArchiConfig = pydantic.Field(IdentityNNConfig(), discriminator="name")
     augmentator: IdentityNNConfig | AugmentatorArchiConfig = pydantic.Field(IdentityNNConfig(), discriminator="name")
 
 
@@ -30,9 +28,7 @@ class TD3ModelConfig(BaseModelConfig):
     name: tp.Literal["TD3Model"] = "TD3Model"
     archi: TD3ModelArchiConfig = TD3ModelArchiConfig()
     actor_std: float = 0.2
-    obs_normalizer: AVAILABLE_NORMALIZERS = pydantic.Field(
-        IdentityNormalizerConfig(), discriminator="name"
-    )
+    obs_normalizer: AVAILABLE_NORMALIZERS = pydantic.Field(IdentityNormalizerConfig(), discriminator="name")
 
     def build(self, obs_space, action_dim) -> "TD3Model":
         return self.object_class(obs_space, action_dim, self)

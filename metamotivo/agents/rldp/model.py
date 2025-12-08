@@ -9,8 +9,8 @@ import gymnasium
 import numpy as np
 
 from ...base_model import load_model
-from ..fb.model import FBModel, FBModelArchiConfig, FBModelConfig
 from ...nn_models import VForwardArchiConfig
+from ..fb.model import FBModel, FBModelArchiConfig, FBModelConfig
 
 
 class RLDPModelArchiConfig(FBModelArchiConfig):

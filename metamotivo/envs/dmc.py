@@ -30,6 +30,7 @@ def create_dmc_env(
 ):
     print(env_kwargs)
     import random
+
     seed = env_kwargs.pop("seed", random.randint(0, 9999))
     env = dmc.make(f"{env_kwargs.get('domain')}_{env_kwargs.get('task')}", seed=env_kwargs.get("seed", 1))
     env = DmcGymWrapper(

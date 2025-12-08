@@ -9,8 +9,8 @@ import torch
 import torch.nn.functional as F
 from torch.amp import autocast
 
-from ..fb.agent import FBAgent, FBAgentConfig, FBAgentTrainConfig
 from ...nn_models import _soft_update_params, eval_mode
+from ..fb.agent import FBAgent, FBAgentConfig, FBAgentTrainConfig
 from .model import RLDPModelConfig
 
 

@@ -17,7 +17,6 @@ from torch.distributions.utils import _standard_normal
 
 from .base import BaseConfig
 
-
 ##########################
 # Initialization utils
 ##########################

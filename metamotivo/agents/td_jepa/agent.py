@@ -145,7 +145,7 @@ class TDJEPAAgent:
             self.update_tdjepa_asym = torch.compile(self.update_tdjepa_asym, mode=mode)
             self.update_tdjepa_sym = torch.compile(self.update_tdjepa_sym, mode=mode)
             self.update_actor = torch.compile(self.update_actor, mode=mode)
-            # feel free to re-enable compilation if https://github.com/pytorch/pytorch/issues/166604 is resolved 
+            # feel free to re-enable compilation if https://github.com/pytorch/pytorch/issues/166604 is resolved
             # self.sample_mixed_z = torch.compile(self.sample_mixed_z, mode=mode, fullgraph=True)
             self.augment_image = torch.compile(self.augment_image, mode=mode)
             self.encode_image = torch.compile(self.encode_image, mode=mode)
@@ -192,7 +192,7 @@ class TDJEPAAgent:
         batch = replay_buffer["train"].sample(self.cfg.train.batch_size)
 
         obs, action, next_obs, terminated = (
-            batch['observation'].to(self.device),
+            batch["observation"].to(self.device),
             batch["action"].to(self.device),
             batch["next"]["observation"].to(self.device),
             batch["next"]["terminated"].to(self.device),

@@ -3,10 +3,10 @@
 # This source code is licensed under the CC BY-NC 4.0 license found in the
 # LICENSE file in the root directory of this source tree.
 
-from copy import deepcopy
 import itertools
-import pathlib
 import os
+import pathlib
+from copy import deepcopy
 
 from train import TrainConfig
 
@@ -82,12 +82,11 @@ def launch_with_sbatch(
     base_config: dict,
     trials: list[dict],
 ):
-
     import shutil
     import stat
-    from subprocess import PIPE, run, TimeoutExpired
+    from subprocess import PIPE, TimeoutExpired, run
 
-    JOB_PREFIX =  """#!/bin/bash
+    JOB_PREFIX = """#!/bin/bash
 #SBATCH --time=1440
 #SBATCH --mem-per-cpu=6000
 #SBATCH --job-name=td_jepa
@@ -155,7 +154,6 @@ def launch_with_exca(
     base_config: dict,
     trials: list[dict],
 ):
-
     import exca as xk
     from exca.confdict import ConfDict
 
@@ -174,7 +172,6 @@ def launch_with_exca(
     }
 
     class InfraTrainConfig(TrainConfig):
-
         infra: xk.TaskInfra = xk.TaskInfra(version="1")
 
         @infra.apply

@@ -34,9 +34,7 @@ class TDJEPAModelArchiConfig(BaseConfig):
     psi_dim: int = 50
     norm_z: bool = True
     # convolutional part of the encoders
-    rgb_encoder: IdentityNNConfig | DrQEncoderArchiConfig = pydantic.Field(
-        IdentityNNConfig(), discriminator="name"
-    )
+    rgb_encoder: IdentityNNConfig | DrQEncoderArchiConfig = pydantic.Field(IdentityNNConfig(), discriminator="name")
     augmentator: IdentityNNConfig | AugmentatorArchiConfig = pydantic.Field(IdentityNNConfig(), discriminator="name")
     # Pred(phi, a, z) --> psi
     phi_predictor: ForwardArchiConfig = ForwardArchiConfig()
@@ -55,9 +53,7 @@ class TDJEPAModelConfig(BaseModelConfig):
     name: tp.Literal["TDJEPAModel"] = "TDJEPAModel"
 
     archi: TDJEPAModelArchiConfig = TDJEPAModelArchiConfig()
-    obs_normalizer: AVAILABLE_NORMALIZERS = pydantic.Field(
-        IdentityNormalizerConfig(), discriminator="name"
-    )
+    obs_normalizer: AVAILABLE_NORMALIZERS = pydantic.Field(IdentityNormalizerConfig(), discriminator="name")
     actor_std: float = 0.2
     # if True, the actor takes as input the output of phi_mlp_encoder(phi_rgb_encoder(obs))
     # if False, the actor takes as input the output of phi_rgb_encoder(obs)
@@ -155,9 +151,7 @@ class TDJEPAModel(BaseModel):
             z = math.sqrt(z.shape[-1]) * F.normalize(z, dim=-1)
         return z
 
-    def act(
-        self, obs: torch.Tensor, z: torch.Tensor, mean: bool = True
-    ) -> torch.Tensor:
+    def act(self, obs: torch.Tensor, z: torch.Tensor, mean: bool = True) -> torch.Tensor:
         dist = self.actor(obs, z, self.cfg.actor_std)
         if mean:
             return dist.mean

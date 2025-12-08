@@ -36,9 +36,7 @@ class SFModelArchiConfig(BaseConfig):
     actor: SimpleActorArchiConfig = pydantic.Field(SimpleActorArchiConfig(), discriminator="name")
     left_encoder: BackwardArchiConfig | IdentityNNConfig = pydantic.Field(IdentityNNConfig(), discriminator="name")
     # a shared image encoder config that is used for all networks
-    rgb_encoder: IdentityNNConfig | DrQEncoderArchiConfig = pydantic.Field(
-        IdentityNNConfig(), discriminator="name"
-    )
+    rgb_encoder: IdentityNNConfig | DrQEncoderArchiConfig = pydantic.Field(IdentityNNConfig(), discriminator="name")
     augmentator: IdentityNNConfig | AugmentatorArchiConfig = pydantic.Field(IdentityNNConfig(), discriminator="name")
 
 
@@ -46,9 +44,7 @@ class SFModelConfig(BaseModelConfig):
     name: tp.Literal["SFModel"] = "SFModel"
 
     archi: SFModelArchiConfig = SFModelArchiConfig()
-    obs_normalizer: AVAILABLE_NORMALIZERS = pydantic.Field(
-        IdentityNormalizerConfig(), discriminator="name"
-    )
+    obs_normalizer: AVAILABLE_NORMALIZERS = pydantic.Field(IdentityNormalizerConfig(), discriminator="name")
     actor_std: float = 0.2
     # if True, the learned features are first centered by subtracting their running mean before being passed to SFs
     center_features: bool = False

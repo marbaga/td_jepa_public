@@ -10,8 +10,8 @@ os.environ["MUJOCO_GL"] = "egl"  # for headless rendering
 
 import torch
 
-torch.backends.cudnn.conv.fp32_precision = 'tf32'
-torch.backends.cuda.matmul.fp32_precision = 'tf32'
+torch.backends.cudnn.conv.fp32_precision = "tf32"
+torch.backends.cuda.matmul.fp32_precision = "tf32"
 torch._inductor.config.autotune_local_cache = False
 
 import json
@@ -27,6 +27,7 @@ import torch
 import tyro
 import wandb
 
+from metamotivo.agents import Agent
 from metamotivo.base import BaseConfig
 from metamotivo.data_loading.dmc import DMCDataConfig
 from metamotivo.data_loading.ogbench import OGBenchDataConfig
@@ -35,7 +36,6 @@ from metamotivo.envs.ogbench import OGBenchEnvConfig
 from metamotivo.evaluations.dmc import DMCRewardEvalConfig
 from metamotivo.evaluations.ogbench import OGBenchRewardEvalConfig
 from metamotivo.misc.loggers import CSVLogger
-from metamotivo.agents import Agent
 from metamotivo.utils import EveryNStepsChecker, get_local_workdir, set_seed_everywhere
 
 TRAIN_LOG_FILENAME = "train_log.txt"
@@ -124,9 +124,7 @@ class Workspace:
 
         sample_env, _ = cfg.env.build()
         self.obs_space = sample_env.observation_space
-        assert isinstance(self.obs_space, gymnasium.spaces.Box), (
-            "Only Box observation spaces are supported"
-        )
+        assert isinstance(self.obs_space, gymnasium.spaces.Box), "Only Box observation spaces are supported"
 
         self.action_space = sample_env.action_space
         assert len(self.action_space.shape) == 1, "Only 1D action space is supported"

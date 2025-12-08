@@ -75,9 +75,7 @@ class DmcGymWrapper(gymnasium.Env):
             case ObsType.state:
                 observation_space = _spec_to_gym(self._env.observation_spec())
             case ObsType.pixels:
-                observation_space = spaces.Box(
-                    low=0, high=255, shape=(self._render_height, self._render_width, 3), dtype=np.uint8
-                )
+                observation_space = spaces.Box(low=0, high=255, shape=(self._render_height, self._render_width, 3), dtype=np.uint8)
             case _:
                 raise ValueError(f"Unknown observation type: {self.obs_type}")
         self._observation_space = observation_space

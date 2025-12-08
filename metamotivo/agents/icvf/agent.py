@@ -110,7 +110,7 @@ class ICVFAgent(SFAgent):
     def update(self, replay_buffer, step: int) -> Dict[str, torch.Tensor]:
         batch = replay_buffer["train"].sample(self.cfg.train.batch_size)
         obs, action, next_obs, terminated = (
-            batch['observation'].to(self.device),
+            batch["observation"].to(self.device),
             batch["action"].to(self.device),
             batch["next"]["observation"].to(self.device),
             batch["next"]["terminated"].to(self.device),

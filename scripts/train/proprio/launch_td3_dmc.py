@@ -5,10 +5,11 @@
 
 import copy
 import dataclasses
+
 import tyro
 
 from metamotivo.envs.dmc_tasks import ALL_TASKS
-from metamotivo.misc.launcher_utils import all_combinations_of_nested_dicts_for_sweep, launch_trials, flatten
+from metamotivo.misc.launcher_utils import all_combinations_of_nested_dicts_for_sweep, flatten, launch_trials
 
 BASE_CFG = {
     "relabel_dataset": True,
@@ -19,11 +20,7 @@ BASE_CFG = {
         "load_n_episodes": 5_000,
         "obs_type": "state",
     },
-    "env": {
-        "name": "dmc",
-        "domain": "walker",
-        "task": "walk"
-    },
+    "env": {"name": "dmc", "domain": "walker", "task": "walk"},
     "agent": {
         "name": "TD3Agent",
         "compile": True,
@@ -33,8 +30,14 @@ BASE_CFG = {
                 "name": "IdentityNormalizerConfig",
             },
             "archi": {
-                "critic": {"hidden_dim": 1024, "hidden_layers": 2,},
-                "actor": {"hidden_dim": 1024, "hidden_layers": 2,},
+                "critic": {
+                    "hidden_dim": 1024,
+                    "hidden_layers": 2,
+                },
+                "actor": {
+                    "hidden_dim": 1024,
+                    "hidden_layers": 2,
+                },
             },
         },
         "train": {
@@ -106,7 +109,6 @@ class LaunchArgs:
 
 
 def main(args: LaunchArgs):
-
     base_cfg = copy.deepcopy(BASE_CFG)
     base_cfg["work_dir"] = args.workdir_root
     base_cfg["data"]["dataset_root"] = args.data_path
@@ -122,30 +124,32 @@ def main(args: LaunchArgs):
     trials = []
     for i, trial in enumerate(all_combinations_of_nested_dicts_for_sweep(sweep_params)):
         trial = flatten(trial)
-        trial.update(flatten(
-            {
-                "use_wandb": args.use_wandb,
-                "wandb_ename": args.wandb_ename,
-                "wandb_pname": args.wandb_pname,
-                "wandb_gname": args.wandb_gname,
-                "work_dir": f"{args.workdir_root}/{i}",
-                "data.domain": trial["env.domain"],
-                "env.task": ALL_TASKS[trial["env.domain"]][0],
-                "evaluations": [
-                    {
-                        "name": "dmc_reward_eval",
-                        "env": {
-                            "name": "dmc",
-                            "domain": trial["env.domain"],
-                            "task": "walk",
+        trial.update(
+            flatten(
+                {
+                    "use_wandb": args.use_wandb,
+                    "wandb_ename": args.wandb_ename,
+                    "wandb_pname": args.wandb_pname,
+                    "wandb_gname": args.wandb_gname,
+                    "work_dir": f"{args.workdir_root}/{i}",
+                    "data.domain": trial["env.domain"],
+                    "env.task": ALL_TASKS[trial["env.domain"]][0],
+                    "evaluations": [
+                        {
+                            "name": "dmc_reward_eval",
+                            "env": {
+                                "name": "dmc",
+                                "domain": trial["env.domain"],
+                                "task": "walk",
+                            },
+                            "tasks": [trial["env.task"]],
+                            "num_episodes": 10,
+                            "num_inference_samples": 10_000,
                         },
-                        "tasks": [trial["env.task"]],
-                        "num_episodes": 10,
-                        "num_inference_samples": 10_000,
-                    },
-                ],
-            }
-        ))
+                    ],
+                }
+            )
+        )
         trials.append(trial)
 
     launch_trials(base_cfg, trials, args.first_only, args.dry, args.slurm, args.exca)
