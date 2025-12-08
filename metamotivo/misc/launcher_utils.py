@@ -8,7 +8,7 @@ import itertools
 import pathlib
 import os
 
-from entry_points.train_offline import TrainConfig
+from train import TrainConfig
 
 
 def flatten(nested_dict: dict, parent_key: str = "", sep: str = ".") -> dict:
