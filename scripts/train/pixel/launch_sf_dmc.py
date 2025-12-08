@@ -326,27 +326,27 @@ def main(args: LaunchArgs):
 if __name__ == "__main__":
     args = tyro.cli(LaunchArgs)
     main(args)
-    # uv run -m scripts.baselines.pixel.launch_sf_dmc --use_wandb --wandb_gname byol_walker_pixel --data_path datasets --workdir_root results --sweep_config sweep_byol_walker --sf_agent byol
-    # uv run -m scripts.baselines.pixel.launch_sf_dmc --use_wandb --wandb_gname byol_cheetah_pixel --data_path datasets --workdir_root results --sweep_config sweep_byol_cheetah --sf_agent byol
-    # uv run -m scripts.baselines.pixel.launch_sf_dmc --use_wandb --wandb_gname byol_quadruped_pixel --data_path datasets --workdir_root results --sweep_config sweep_byol_quadruped --sf_agent byol
-    # uv run -m scripts.baselines.pixel.launch_sf_dmc --use_wandb --wandb_gname byol_pointmass_pixel --data_path datasets --workdir_root results --sweep_config sweep_byol_pointmass --sf_agent byol
+    # uv run -m scripts.train.pixel.launch_sf_dmc --use_wandb --wandb_gname byol_walker_pixel --data_path datasets --workdir_root results --sweep_config sweep_byol_walker --sf_agent byol
+    # uv run -m scripts.train.pixel.launch_sf_dmc --use_wandb --wandb_gname byol_cheetah_pixel --data_path datasets --workdir_root results --sweep_config sweep_byol_cheetah --sf_agent byol
+    # uv run -m scripts.train.pixel.launch_sf_dmc --use_wandb --wandb_gname byol_quadruped_pixel --data_path datasets --workdir_root results --sweep_config sweep_byol_quadruped --sf_agent byol
+    # uv run -m scripts.train.pixel.launch_sf_dmc --use_wandb --wandb_gname byol_pointmass_pixel --data_path datasets --workdir_root results --sweep_config sweep_byol_pointmass --sf_agent byol
 
-    # uv run -m scripts.baselines.pixel.launch_sf_dmc --use_wandb --wandb_gname byol_gamma_walker_pixel --data_path datasets --workdir_root results --sweep_config sweep_byol_walker --sf_agent byol-gamma
-    # uv run -m scripts.baselines.pixel.launch_sf_dmc --use_wandb --wandb_gname byol_gamma_cheetah_pixel --data_path datasets --workdir_root results --sweep_config sweep_byol_cheetah --sf_agent byol-gamma
-    # uv run -m scripts.baselines.pixel.launch_sf_dmc --use_wandb --wandb_gname byol_gamma_quadruped_pixel --data_path datasets --workdir_root results --sweep_config sweep_byol_quadruped --sf_agent byol-gamma
-    # uv run -m scripts.baselines.pixel.launch_sf_dmc --use_wandb --wandb_gname byol_gamma_pointmass_pixel --data_path datasets --workdir_root results --sweep_config sweep_byol_pointmass --sf_agent byol-gamma
+    # uv run -m scripts.train.pixel.launch_sf_dmc --use_wandb --wandb_gname byol_gamma_walker_pixel --data_path datasets --workdir_root results --sweep_config sweep_byol_walker --sf_agent byol-gamma
+    # uv run -m scripts.train.pixel.launch_sf_dmc --use_wandb --wandb_gname byol_gamma_cheetah_pixel --data_path datasets --workdir_root results --sweep_config sweep_byol_cheetah --sf_agent byol-gamma
+    # uv run -m scripts.train.pixel.launch_sf_dmc --use_wandb --wandb_gname byol_gamma_quadruped_pixel --data_path datasets --workdir_root results --sweep_config sweep_byol_quadruped --sf_agent byol-gamma
+    # uv run -m scripts.train.pixel.launch_sf_dmc --use_wandb --wandb_gname byol_gamma_pointmass_pixel --data_path datasets --workdir_root results --sweep_config sweep_byol_pointmass --sf_agent byol-gamma
 
-    # uv run -m scripts.baselines.pixel.launch_sf_dmc --use_wandb --wandb_gname hilp_walker_pixel --data_path datasets --workdir_root results --sweep_config sweep_hilp_walker --sf_agent hilp
-    # uv run -m scripts.baselines.pixel.launch_sf_dmc --use_wandb --wandb_gname hilp_cheetah_pixel --data_path datasets --workdir_root results --sweep_config sweep_hilp_cheetah --sf_agent hilp
-    # uv run -m scripts.baselines.pixel.launch_sf_dmc --use_wandb --wandb_gname hilp_quadruped_pixel --data_path datasets --workdir_root results --sweep_config sweep_hilp_quadruped --sf_agent hilp
-    # uv run -m scripts.baselines.pixel.launch_sf_dmc --use_wandb --wandb_gname hilp_pointmass_pixel --data_path datasets --workdir_root results --sweep_config sweep_hilp_pointmass --sf_agent hilp
+    # uv run -m scripts.train.pixel.launch_sf_dmc --use_wandb --wandb_gname hilp_walker_pixel --data_path datasets --workdir_root results --sweep_config sweep_hilp_walker --sf_agent hilp
+    # uv run -m scripts.train.pixel.launch_sf_dmc --use_wandb --wandb_gname hilp_cheetah_pixel --data_path datasets --workdir_root results --sweep_config sweep_hilp_cheetah --sf_agent hilp
+    # uv run -m scripts.train.pixel.launch_sf_dmc --use_wandb --wandb_gname hilp_quadruped_pixel --data_path datasets --workdir_root results --sweep_config sweep_hilp_quadruped --sf_agent hilp
+    # uv run -m scripts.train.pixel.launch_sf_dmc --use_wandb --wandb_gname hilp_pointmass_pixel --data_path datasets --workdir_root results --sweep_config sweep_hilp_pointmass --sf_agent hilp
 
-    # uv run -m scripts.baselines.pixel.launch_sf_dmc --use_wandb --wandb_gname laplacian_walker_pixel --data_path datasets --workdir_root results --sweep_config sweep_laplacian_walker --sf_agent laplacian
-    # uv run -m scripts.baselines.pixel.launch_sf_dmc --use_wandb --wandb_gname laplacian_cheetah_pixel --data_path datasets --workdir_root results --sweep_config sweep_laplacian_cheetah --sf_agent laplacian
-    # uv run -m scripts.baselines.pixel.launch_sf_dmc --use_wandb --wandb_gname laplacian_quadruped_pixel --data_path datasets --workdir_root results --sweep_config sweep_laplacian_quadruped --sf_agent laplacian
-    # uv run -m scripts.baselines.pixel.launch_sf_dmc --use_wandb --wandb_gname laplacian_pointmass_pixel --data_path datasets --workdir_root results --sweep_config sweep_laplacian_pointmass --sf_agent laplacian
+    # uv run -m scripts.train.pixel.launch_sf_dmc --use_wandb --wandb_gname laplacian_walker_pixel --data_path datasets --workdir_root results --sweep_config sweep_laplacian_walker --sf_agent laplacian
+    # uv run -m scripts.train.pixel.launch_sf_dmc --use_wandb --wandb_gname laplacian_cheetah_pixel --data_path datasets --workdir_root results --sweep_config sweep_laplacian_cheetah --sf_agent laplacian
+    # uv run -m scripts.train.pixel.launch_sf_dmc --use_wandb --wandb_gname laplacian_quadruped_pixel --data_path datasets --workdir_root results --sweep_config sweep_laplacian_quadruped --sf_agent laplacian
+    # uv run -m scripts.train.pixel.launch_sf_dmc --use_wandb --wandb_gname laplacian_pointmass_pixel --data_path datasets --workdir_root results --sweep_config sweep_laplacian_pointmass --sf_agent laplacian
 
-    # uv run -m scripts.baselines.pixel.launch_sf_dmc --use_wandb --wandb_gname icvf_walker_pixel --data_path datasets --workdir_root results --sweep_config sweep_hilp_walker --sf_agent icvf
-    # uv run -m scripts.baselines.pixel.launch_sf_dmc --use_wandb --wandb_gname icvf_cheetah_pixel --data_path datasets --workdir_root results --sweep_config sweep_hilp_cheetah --sf_agent icvf
-    # uv run -m scripts.baselines.pixel.launch_sf_dmc --use_wandb --wandb_gname icvf_quadruped_pixel --data_path datasets --workdir_root results --sweep_config sweep_hilp_quadruped --sf_agent icvf
-    # uv run -m scripts.baselines.pixel.launch_sf_dmc --use_wandb --wandb_gname icvf_pointmass_pixel --data_path datasets --workdir_root results --sweep_config sweep_hilp_pointmass --sf_agent icvf
+    # uv run -m scripts.train.pixel.launch_sf_dmc --use_wandb --wandb_gname icvf_walker_pixel --data_path datasets --workdir_root results --sweep_config sweep_hilp_walker --sf_agent icvf
+    # uv run -m scripts.train.pixel.launch_sf_dmc --use_wandb --wandb_gname icvf_cheetah_pixel --data_path datasets --workdir_root results --sweep_config sweep_hilp_cheetah --sf_agent icvf
+    # uv run -m scripts.train.pixel.launch_sf_dmc --use_wandb --wandb_gname icvf_quadruped_pixel --data_path datasets --workdir_root results --sweep_config sweep_hilp_quadruped --sf_agent icvf
+    # uv run -m scripts.train.pixel.launch_sf_dmc --use_wandb --wandb_gname icvf_pointmass_pixel --data_path datasets --workdir_root results --sweep_config sweep_hilp_pointmass --sf_agent icvf

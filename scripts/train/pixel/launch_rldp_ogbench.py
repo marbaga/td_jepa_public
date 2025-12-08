@@ -15,15 +15,16 @@ BASE_CFG = {
     "data": {
         "name": "ogbench",
         "domain": "cube-single-play-v0",
-        "obs_type": "state",
+        "obs_type": "pixels",
         "buffer_type": "parallel",
         "horizon": 5,
     },
     "env": {
         "name": "ogbench",
-        "obs_type": "state",
         "domain": "cube-single-play-v0",
         "task": "cube-single-play-singletask-task1-v0",
+        "obs_type": "pixels",
+        "frame_stack": 3,
     },
     "agent": {
         "name": "RLDPFlowBCAgent",
@@ -31,40 +32,24 @@ BASE_CFG = {
         "model": {
             "device": "cuda",
             "obs_normalizer": {
-                "name": "IdentityNormalizerConfig",
+                "name": "RGBNormalizerConfig",
             },
             "archi": {
-                "f": {
-                    "name": "ForwardArchi",
-                    "hidden_dim": 512,
-                    "hidden_layers": 2,
+                "f": {"name": "ForwardArchi", "hidden_dim": 512, "hidden_layers": 2},
+                "actor": {"name": "noise_conditioned_actor", "hidden_dim": 512, "hidden_layers": 2},
+                "actor_vf": {"hidden_layers": 4, "hidden_dim": 512},
+                "b": {"name": "BackwardArchi", "hidden_dim": 512, "hidden_layers": 4, "norm": True},
+                "left_encoder": {"name": "BackwardArchi", "hidden_dim": 512, "hidden_layers": 0, "norm": True},
+                "predictor": {"hidden_dim": 512, "hidden_layers": 2},
+                "rgb_encoder": {
+                    "name": "drq",
+                    "feature_dim": 256,
                 },
-                "actor": {
-                    "hidden_dim": 512,
-                    "hidden_layers": 2,
-                    "name": "noise_conditioned_actor",
+                "augmentator": {
+                    "name": "random_shifts",
+                    "pad": 2,
                 },
-                "actor_vf": {
-                    "hidden_layers": 4,
-                    "hidden_dim": 512,
-                },
-                "b": {
-                    "name": "BackwardArchi",
-                    "hidden_dim": 512,
-                    "hidden_layers": 4,
-                    "norm": True,
-                },
-                "predictor": {
-                    "hidden_dim": 512,
-                    "hidden_layers": 2,
-                },
-                "left_encoder": {
-                    "name": "BackwardArchi",
-                    "hidden_dim": 512,
-                    "hidden_layers": 4,
-                    "norm": True,
-                },
-                "L_dim": 50,
+                "L_dim": 256,
                 "z_dim": 50,
                 "norm_z": True,
             },
@@ -108,7 +93,7 @@ def sweep_cube():
             "puzzle-3x3-play-v0",
         ],
         "agent.train.bc_coeff": [3.0],
-        "agent.train.ortho_coef": [0.01, 0.1],
+        "agent.train.ortho_coef": [0.1, 1],
         "agent.train.lr_b": [1.0e-4, 1.0e-5],
     }
     return conf
@@ -134,8 +119,6 @@ class LaunchArgs:
     slurm: bool = False
     # launch with exca
     exca: bool = False
-    # selects the depth of the left encoder
-    left_encoder: Literal["shallow", "deep"] = "deep"
 
 
 def main(args: LaunchArgs):
@@ -143,14 +126,6 @@ def main(args: LaunchArgs):
     base_cfg = copy.deepcopy(BASE_CFG)
     base_cfg["work_dir"] = args.workdir_root
     base_cfg["data"]["dataset_root"] = args.data_path
-    match args.left_encoder:
-        case "shallow":
-            base_cfg["agent"]["model"]["archi"]["left_encoder"]["hidden_layers"] = 0
-            base_cfg["agent"]["model"]["archi"]["L_dim"] = 256
-        case "deep":
-            pass
-        case _:
-            raise NotImplementedError("Unknown left encoder configuration: ", args.left_encoder)
 
     if args.sweep_config is None:
         sweep_params = {}
@@ -180,6 +155,8 @@ def main(args: LaunchArgs):
                             "name": "ogbench",
                             "domain": trial["env.domain"],
                             "task": ALL_TASKS[trial["env.domain"]][0],
+                            "obs_type": "pixels",
+                            "frame_stack": base_cfg["env"]["frame_stack"],
                         },
                         "tasks": ALL_TASKS[trial["env.domain"]],
                         "num_episodes": 10,
@@ -196,5 +173,5 @@ def main(args: LaunchArgs):
 if __name__ == "__main__":
     args = tyro.cli(LaunchArgs)
     main(args)
-    # uv run -m scripts.baselines.replearn.launch_rldp_ogbench --use_wandb --wandb_gname rldp_antmaze_proprio --data_path datasets --workdir_root results --sweep_config sweep_antmaze
-    # uv run -m scripts.baselines.replearn.launch_rldp_ogbench --use_wandb --wandb_gname rldp_cube_proprio --data_path datasets --workdir_root results --sweep_config sweep_cube
+    # uv run -m scripts.train.pixel.launch_rldp_ogbench --use_wandb --wandb_gname rldp_antmaze_pixel --data_path datasets --workdir_root results --sweep_config sweep_antmaze
+    # uv run -m scripts.train.pixel.launch_rldp_ogbench --use_wandb --wandb_gname rldp_cube_pixel --data_path datasets --workdir_root results --sweep_config sweep_cube

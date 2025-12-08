@@ -5,13 +5,13 @@
 
 import copy
 import dataclasses
+from typing import Literal
 import tyro
 
 from metamotivo.envs.dmc_tasks import ALL_TASKS
 from metamotivo.misc.launcher_utils import all_combinations_of_nested_dicts_for_sweep, launch_trials, flatten
 
 BASE_CFG = {
-    "relabel_dataset": True,
     "num_train_steps": 3_000_000,
     "data": {
         "name": "dmc",
@@ -25,7 +25,7 @@ BASE_CFG = {
         "task": "walk"
     },
     "agent": {
-        "name": "TD3Agent",
+        "name": "FBAgent",
         "compile": True,
         "model": {
             "device": "cuda",
@@ -33,15 +33,39 @@ BASE_CFG = {
                 "name": "IdentityNormalizerConfig",
             },
             "archi": {
-                "critic": {"hidden_dim": 1024, "hidden_layers": 2,},
-                "actor": {"hidden_dim": 1024, "hidden_layers": 2,},
+                "f": {
+                    "name": "ForwardArchi",
+                    "hidden_dim": 1024,
+                    "hidden_layers": 1,
+                },
+                "actor": {
+                    "hidden_dim": 1024,
+                    "hidden_layers": 1,
+                    "name": "simple",
+                },
+                "b": {
+                    "name": "BackwardArchi",
+                    "hidden_dim": 256,
+                    "hidden_layers": 2,
+                    "norm": True,
+                },
+                "left_encoder": {
+                    "name": "BackwardArchi",
+                    "hidden_dim": 256,
+                    "hidden_layers": 0,
+                    "norm": True,
+                },
+                "L_dim": 256,
+                "z_dim": 50,
+                "norm_z": True,
             },
         },
         "train": {
             "batch_size": 1024,
             "discount": 0.98,
-            "lr": 1e-4,
-            "critic_target_tau": 0.005,
+            "ortho_coef": 1,
+            "f_target_tau": 0.001,
+            "b_target_tau": 0.001,
         },
     },
 }
@@ -51,7 +75,10 @@ def sweep_walker():
     conf = {
         "seed": [3917, 3502, 8948, 9460, 4729],
         "env.domain": ["walker"],
-        "env.task": ALL_TASKS["walker"],
+        "agent": {
+            "model": {"archi": {"z_dim": [50]}},
+            "train": {"lr_b": [1e-4, 1e-5], "ortho_coef": [0.1, 1, 10]},
+        },
     }
     return conf
 
@@ -60,7 +87,10 @@ def sweep_cheetah():
     conf = {
         "seed": [3917, 3502, 8948, 9460, 4729],
         "env.domain": ["cheetah"],
-        "env.task": ALL_TASKS["cheetah"],
+        "agent": {
+            "model": {"archi": {"z_dim": [50]}},
+            "train": {"lr_b": [1e-4, 1e-5], "ortho_coef": [0.1, 1, 10]},
+        },
     }
     return conf
 
@@ -69,7 +99,10 @@ def sweep_quadruped():
     conf = {
         "seed": [3917, 3502, 8948, 9460, 4729],
         "env.domain": ["quadruped"],
-        "env.task": ALL_TASKS["quadruped"],
+        "agent": {
+            "model": {"archi": {"z_dim": [50]}},
+            "train": {"lr_b": [1e-4, 1e-5], "ortho_coef": [0.1, 1, 10]},
+        },
     }
     return conf
 
@@ -78,7 +111,11 @@ def sweep_pointmass():
     conf = {
         "seed": [3917, 3502, 8948, 9460, 4729],
         "env.domain": ["pointmass"],
-        "env.task": ALL_TASKS["pointmass"],
+        "env.task": ["reach_top_left"],
+        "agent": {
+            "model": {"archi": {"z_dim": [50]}},
+            "train": {"lr_b": [1e-4, 1e-5], "ortho_coef": [0.1, 1, 10], "discount": [0.99], "lr_actor": [1e-6]},
+        },
     }
     return conf
 
@@ -103,6 +140,8 @@ class LaunchArgs:
     slurm: bool = False
     # launch with exca
     exca: bool = False
+    # selects the depth of the state encoder
+    left_encoder: Literal["shallow", "deep"] = "shallow"
 
 
 def main(args: LaunchArgs):
@@ -110,6 +149,14 @@ def main(args: LaunchArgs):
     base_cfg = copy.deepcopy(BASE_CFG)
     base_cfg["work_dir"] = args.workdir_root
     base_cfg["data"]["dataset_root"] = args.data_path
+    match args.left_encoder:
+        case "shallow":
+            pass
+        case "deep":
+            base_cfg["agent"]["model"]["archi"]["left_encoder"]["hidden_layers"] = 2
+            base_cfg["agent"]["model"]["archi"]["L_dim"] = 50
+        case _:
+            raise NotImplementedError("Unknown left encoder configuration: ", args.left_encoder)
 
     if args.sweep_config is None:
         sweep_params = {}
@@ -137,9 +184,9 @@ def main(args: LaunchArgs):
                         "env": {
                             "name": "dmc",
                             "domain": trial["env.domain"],
-                            "task": "walk",
+                            "task": ALL_TASKS[trial["env.domain"]][0],
                         },
-                        "tasks": [trial["env.task"]],
+                        "tasks": ALL_TASKS[trial["env.domain"]],
                         "num_episodes": 10,
                         "num_inference_samples": 10_000,
                     },
@@ -154,4 +201,7 @@ def main(args: LaunchArgs):
 if __name__ == "__main__":
     args = tyro.cli(LaunchArgs)
     main(args)
-    # uv run -m scripts.baselines.replearn.launch_td3_dmc --use_wandb --wandb_gname td3_walker_proprio --data_path datasets --workdir_root results --sweep_config sweep_walker
+    # uv run -m scripts.train.proprio.launch_fb_dmc --use_wandb --wandb_gname fb_walker_proprio --data_path datasets --workdir_root results --sweep_config sweep_walker
+    # uv run -m scripts.train.proprio.launch_fb_dmc --use_wandb --wandb_gname fb_cheetah_proprio --data_path datasets --workdir_root results --sweep_config sweep_cheetah
+    # uv run -m scripts.train.proprio.launch_fb_dmc --use_wandb --wandb_gname fb_quadruped_proprio --data_path datasets --workdir_root results --sweep_config sweep_quadruped
+    # uv run -m scripts.train.proprio.launch_fb_dmc --use_wandb --wandb_gname fb_pointmass_proprio --data_path datasets --workdir_root results --sweep_config sweep_pointmass

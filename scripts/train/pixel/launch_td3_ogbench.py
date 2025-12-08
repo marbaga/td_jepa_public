@@ -271,4 +271,4 @@ def main(args: LaunchArgs):
 if __name__ == "__main__":
     args = tyro.cli(LaunchArgs)
     main(args)
-    # uv run -m scripts.baselines.pixel.launch_td3_ogbench --use_wandb --wandb_gname td3_antmaze_pixel --data_path datasets --workdir_root results --sweep_config sweep_antmaze_medium_navigate
+    # uv run -m scripts.train.pixel.launch_td3_ogbench --use_wandb --wandb_gname td3_antmaze_pixel --data_path datasets --workdir_root results --sweep_config sweep_antmaze_medium_navigate

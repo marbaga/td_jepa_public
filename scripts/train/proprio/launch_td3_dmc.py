@@ -11,55 +11,37 @@ from metamotivo.envs.dmc_tasks import ALL_TASKS
 from metamotivo.misc.launcher_utils import all_combinations_of_nested_dicts_for_sweep, launch_trials, flatten
 
 BASE_CFG = {
-    "num_train_steps": 2_000_000,
+    "relabel_dataset": True,
+    "num_train_steps": 3_000_000,
     "data": {
         "name": "dmc",
         "domain": "walker",
         "load_n_episodes": 5_000,
-        "obs_type": "pixels",
-        "buffer_type": "parallel",
-        "horizon": 5,
+        "obs_type": "state",
     },
     "env": {
         "name": "dmc",
         "domain": "walker",
-        "task": "walk",
-        "obs_type": "pixels",
-        "frame_stack": 3,
+        "task": "walk"
     },
     "agent": {
-        "name": "RLDPAgent",
+        "name": "TD3Agent",
         "compile": True,
         "model": {
             "device": "cuda",
             "obs_normalizer": {
-                "name": "RGBNormalizerConfig",
+                "name": "IdentityNormalizerConfig",
             },
             "archi": {
-                "f": {"name": "ForwardArchi", "hidden_dim": 1024, "hidden_layers": 1},
-                "actor": {"hidden_dim": 1024, "hidden_layers": 1, "name": "simple"},
-                "b": {"name": "BackwardArchi", "hidden_dim": 256, "hidden_layers": 2, "norm": True},
-                "left_encoder": {"name": "BackwardArchi", "hidden_dim": 256, "hidden_layers": 0, "norm": True},
-                "predictor": {"hidden_dim": 1024, "hidden_layers": 1},
-                "rgb_encoder": {
-                    "name": "drq",
-                    "feature_dim": 256,
-                },
-                "augmentator": {
-                    "name": "random_shifts",
-                    "pad": 2,
-                },
-                "L_dim": 256,
-                "z_dim": 50,
-                "norm_z": True,
+                "critic": {"hidden_dim": 1024, "hidden_layers": 2,},
+                "actor": {"hidden_dim": 1024, "hidden_layers": 2,},
             },
         },
         "train": {
-            "batch_size": 512,
+            "batch_size": 1024,
             "discount": 0.98,
-            "ortho_coef": 1,
-            "f_target_tau": 0.001,
-            "b_target_tau": 0.001,
+            "lr": 1e-4,
+            "critic_target_tau": 0.005,
         },
     },
 }
@@ -69,10 +51,7 @@ def sweep_walker():
     conf = {
         "seed": [3917, 3502, 8948, 9460, 4729],
         "env.domain": ["walker"],
-        "agent": {
-            "model": {"archi": {"z_dim": [50]}},
-            "train": {"lr_b": [1e-4, 1e-5], "ortho_coef": [0.001, 0.01, 0.1]},
-        },
+        "env.task": ALL_TASKS["walker"],
     }
     return conf
 
@@ -81,10 +60,7 @@ def sweep_cheetah():
     conf = {
         "seed": [3917, 3502, 8948, 9460, 4729],
         "env.domain": ["cheetah"],
-        "agent": {
-            "model": {"archi": {"z_dim": [50]}},
-            "train": {"lr_b": [1e-4, 1e-5], "ortho_coef": [0.001, 0.01, 0.1]},
-        },
+        "env.task": ALL_TASKS["cheetah"],
     }
     return conf
 
@@ -93,10 +69,7 @@ def sweep_quadruped():
     conf = {
         "seed": [3917, 3502, 8948, 9460, 4729],
         "env.domain": ["quadruped"],
-        "agent": {
-            "model": {"archi": {"z_dim": [50]}},
-            "train": {"lr_b": [1e-4, 1e-5], "ortho_coef": [0.001, 0.01, 0.1]},
-        },
+        "env.task": ALL_TASKS["quadruped"],
     }
     return conf
 
@@ -105,11 +78,7 @@ def sweep_pointmass():
     conf = {
         "seed": [3917, 3502, 8948, 9460, 4729],
         "env.domain": ["pointmass"],
-        "env.task": ["reach_top_left"],
-        "agent": {
-            "model": {"archi": {"z_dim": [50]}},
-            "train": {"lr_b": [1e-4, 1e-5], "ortho_coef": [0.001, 0.01, 0.1], "discount": [0.99]},
-        },
+        "env.task": ALL_TASKS["pointmass"],
     }
     return conf
 
@@ -168,11 +137,9 @@ def main(args: LaunchArgs):
                         "env": {
                             "name": "dmc",
                             "domain": trial["env.domain"],
-                            "task": ALL_TASKS[trial["env.domain"]][0],
-                            "obs_type": "pixels",
-                            "frame_stack": base_cfg["env"]["frame_stack"],
+                            "task": "walk",
                         },
-                        "tasks": ALL_TASKS[trial["env.domain"]],
+                        "tasks": [trial["env.task"]],
                         "num_episodes": 10,
                         "num_inference_samples": 10_000,
                     },
@@ -187,7 +154,4 @@ def main(args: LaunchArgs):
 if __name__ == "__main__":
     args = tyro.cli(LaunchArgs)
     main(args)
-    # uv run -m scripts.baselines.pixel.launch_rldp_dmc --use_wandb --wandb_gname rldp_walker_pixel --data_path datasets --workdir_root results --sweep_config sweep_walker
-    # uv run -m scripts.baselines.pixel.launch_rldp_dmc --use_wandb --wandb_gname rldp_cheetah_pixel --data_path datasets --workdir_root results --sweep_config sweep_cheetah
-    # uv run -m scripts.baselines.pixel.launch_rldp_dmc --use_wandb --wandb_gname rldp_quadruped_pixel --data_path datasets --workdir_root results --sweep_config sweep_quadruped
-    # uv run -m scripts.baselines.pixel.launch_rldp_dmc --use_wandb --wandb_gname rldp_pointmass_pixel --data_path datasets --workdir_root results --sweep_config sweep_pointmass
+    # uv run -m scripts.train.proprio.launch_td3_dmc --use_wandb --wandb_gname td3_walker_proprio --data_path datasets --workdir_root results --sweep_config sweep_walker

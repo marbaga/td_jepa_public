@@ -5,30 +5,28 @@
 
 import copy
 import dataclasses
-from typing import Literal
 import tyro
 
-from metamotivo.envs.dmc_tasks import ALL_TASKS
+from metamotivo.envs.ogbench import ALL_TASKS
 from metamotivo.misc.launcher_utils import all_combinations_of_nested_dicts_for_sweep, launch_trials, flatten
 
-
 BASE_CFG = {
-    "num_train_steps": 3_000_000,
+    "num_train_steps": 1_000_000,
     "data": {
-        "name": "dmc",
-        "domain": "walker",
-        "load_n_episodes": 5_000,
+        "name": "ogbench",
+        "domain": "cube-single-play-v0",
         "obs_type": "state",
         "buffer_type": "parallel",
         "horizon": 5,
     },
     "env": {
-        "name": "dmc",
-        "domain": "walker",
-        "task": "walk"
+        "name": "ogbench",
+        "obs_type": "state",
+        "domain": "cube-single-play-v0",
+        "task": "cube-single-play-singletask-task1-v0",
     },
     "agent": {
-        "name": "RLDPAgent",
+        "name": "RLDPFlowBCAgent",
         "compile": True,
         "model": {
             "device": "cuda",
@@ -38,91 +36,80 @@ BASE_CFG = {
             "archi": {
                 "f": {
                     "name": "ForwardArchi",
-                    "hidden_dim": 1024,
-                    "hidden_layers": 1,
+                    "hidden_dim": 512,
+                    "hidden_layers": 2,
                 },
                 "actor": {
-                    "hidden_dim": 1024,
-                    "hidden_layers": 1,
-                    "name": "simple",
+                    "hidden_dim": 512,
+                    "hidden_layers": 2,
+                    "name": "noise_conditioned_actor",
+                },
+                "actor_vf": {
+                    "hidden_layers": 4,
+                    "hidden_dim": 512,
                 },
                 "b": {
                     "name": "BackwardArchi",
-                    "hidden_dim": 256,
-                    "hidden_layers": 2,
-                    "norm": True,
-                },
-                "left_encoder": {
-                    "name": "BackwardArchi",
-                    "hidden_dim": 256,
-                    "hidden_layers": 0,
+                    "hidden_dim": 512,
+                    "hidden_layers": 4,
                     "norm": True,
                 },
                 "predictor": {
-                    "hidden_dim": 1024,
-                    "hidden_layers": 1,
+                    "hidden_dim": 512,
+                    "hidden_layers": 2,
                 },
-                "L_dim": 256,
+                "left_encoder": {
+                    "name": "BackwardArchi",
+                    "hidden_dim": 512,
+                    "hidden_layers": 4,
+                    "norm": True,
+                },
+                "L_dim": 50,
                 "z_dim": 50,
                 "norm_z": True,
             },
+            "actor_encode_obs": False,
         },
         "train": {
-            "batch_size": 1024,
-            "discount": 0.98,
-            "ortho_coef": 1,
-            "f_target_tau": 0.001,
-            "b_target_tau": 0.001,
+            "batch_size": 256,
+            "discount": 0.99,
+            "ortho_coef": 1.0,
+            "f_target_tau": 0.005,
+            "b_target_tau": 0.005,
         },
     },
 }
 
 
-def sweep_walker():
+def sweep_antmaze():
     conf = {
-        "seed": [3917, 3502, 8948, 9460, 4729],
-        "env.domain": ["walker"],
-        "agent": {
-            "model": {"archi": {"z_dim": [50]}},
-            "train": {"lr_b": [1e-4, 1e-5], "ortho_coef": [0.001, 0.01, 0.1]},
-        },
+        "seed": [3917, 3502, 8948, 9460, 4729, 2226, 1744, 7742, 4501, 6341],
+        "env.domain": [
+            "antmaze-medium-navigate-v0",
+            "antmaze-large-navigate-v0",
+            "antmaze-medium-stitch-v0",
+            "antmaze-large-stitch-v0",
+            "antmaze-medium-explore-v0",
+        ],
+        "agent.train.bc_coeff": [0.3],
+        "agent.train.ortho_coef": [0.001, 0.01],
+        "agent.train.lr_b": [1.0e-4, 1.0e-5],
     }
     return conf
 
 
-def sweep_cheetah():
+def sweep_cube():
     conf = {
-        "seed": [3917, 3502, 8948, 9460, 4729],
-        "env.domain": ["cheetah"],
-        "agent": {
-            "model": {"archi": {"z_dim": [50]}},
-            "train": {"lr_b": [1e-4, 1e-5], "ortho_coef": [0.001, 0.01, 0.1]},
-        },
-    }
-    return conf
-
-
-def sweep_quadruped():
-    conf = {
-        "seed": [3917, 3502, 8948, 9460, 4729],
-        "env.domain": ["quadruped"],
-        "agent": {
-            "model": {"archi": {"z_dim": [50]}},
-            "train": {"lr_b": [1e-4, 1e-5], "ortho_coef": [0.001, 0.01, 0.1]},
-        },
-    }
-    return conf
-
-
-def sweep_pointmass():
-    conf = {
-        "seed": [3917, 3502, 8948, 9460, 4729],
-        "env.domain": ["pointmass"],
-        "env.task": ["reach_top_left"],
-        "agent": {
-            "model": {"archi": {"z_dim": [50]}},
-            "train": {"lr_b": [1e-4, 1e-5], "ortho_coef": [0.001, 0.01, 0.1], "discount": [0.99], "lr_actor": [1e-6]},
-        },
+        "seed": [3917, 3502, 8948, 9460, 4729, 2226, 1744, 7742, 4501, 6341],
+        "env.domain": [
+            "cube-single-play-v0",
+            "cube-double-play-v0",
+            "scene-play-v0",
+            "puzzle-3x3-play-v0",
+        ],
+        "agent.train.bc_coeff": [3.0],
+        "agent.train.ortho_coef": [0.01, 0.1],
+        "agent.train.lr_b": [1.0e-4, 1.0e-5],
     }
     return conf
 
@@ -147,8 +134,8 @@ class LaunchArgs:
     slurm: bool = False
     # launch with exca
     exca: bool = False
-    # selects the depth of the state encoder
-    left_encoder: Literal["shallow", "deep"] = "shallow"
+    # selects the depth of the left encoder
+    left_encoder: Literal["shallow", "deep"] = "deep"
 
 
 def main(args: LaunchArgs):
@@ -158,10 +145,10 @@ def main(args: LaunchArgs):
     base_cfg["data"]["dataset_root"] = args.data_path
     match args.left_encoder:
         case "shallow":
-            pass
+            base_cfg["agent"]["model"]["archi"]["left_encoder"]["hidden_layers"] = 0
+            base_cfg["agent"]["model"]["archi"]["L_dim"] = 256
         case "deep":
-            base_cfg["agent"]["model"]["archi"]["left_encoder"]["hidden_layers"] = 2
-            base_cfg["agent"]["model"]["archi"]["L_dim"] = 50
+            pass
         case _:
             raise NotImplementedError("Unknown left encoder configuration: ", args.left_encoder)
 
@@ -187,9 +174,10 @@ def main(args: LaunchArgs):
                 "env.task": ALL_TASKS[trial["env.domain"]][0],
                 "evaluations": [
                     {
-                        "name": "dmc_reward_eval",
+                        "name": "ogbench_reward_eval",
+                        "shift_reward": 1,
                         "env": {
-                            "name": "dmc",
+                            "name": "ogbench",
                             "domain": trial["env.domain"],
                             "task": ALL_TASKS[trial["env.domain"]][0],
                         },
@@ -208,7 +196,5 @@ def main(args: LaunchArgs):
 if __name__ == "__main__":
     args = tyro.cli(LaunchArgs)
     main(args)
-    # uv run -m scripts.baselines.replearn.launch_rldp_dmc --use_wandb --wandb_gname rldp_walker_proprio --data_path datasets --workdir_root results --sweep_config sweep_walker
-    # uv run -m scripts.baselines.replearn.launch_rldp_dmc --use_wandb --wandb_gname rldp_cheetah_proprio --data_path datasets --workdir_root results --sweep_config sweep_cheetah
-    # uv run -m scripts.baselines.replearn.launch_rldp_dmc --use_wandb --wandb_gname rldp_quadruped_proprio --data_path datasets --workdir_root results --sweep_config sweep_quadruped
-    # uv run -m scripts.baselines.replearn.launch_rldp_dmc --use_wandb --wandb_gname rldp_pointmass_proprio --data_path datasets --workdir_root results --sweep_config sweep_pointmass
+    # uv run -m scripts.train.proprio.launch_rldp_ogbench --use_wandb --wandb_gname rldp_antmaze_proprio --data_path datasets --workdir_root results --sweep_config sweep_antmaze
+    # uv run -m scripts.train.proprio.launch_rldp_ogbench --use_wandb --wandb_gname rldp_cube_proprio --data_path datasets --workdir_root results --sweep_config sweep_cube

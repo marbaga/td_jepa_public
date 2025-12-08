@@ -11,6 +11,7 @@ import tyro
 from metamotivo.envs.dmc_tasks import ALL_TASKS
 from metamotivo.misc.launcher_utils import all_combinations_of_nested_dicts_for_sweep, launch_trials, flatten
 
+
 BASE_CFG = {
     "num_train_steps": 3_000_000,
     "data": {
@@ -18,6 +19,8 @@ BASE_CFG = {
         "domain": "walker",
         "load_n_episodes": 5_000,
         "obs_type": "state",
+        "buffer_type": "parallel",
+        "horizon": 5,
     },
     "env": {
         "name": "dmc",
@@ -25,7 +28,7 @@ BASE_CFG = {
         "task": "walk"
     },
     "agent": {
-        "name": "FBAgent",
+        "name": "RLDPAgent",
         "compile": True,
         "model": {
             "device": "cuda",
@@ -55,6 +58,10 @@ BASE_CFG = {
                     "hidden_layers": 0,
                     "norm": True,
                 },
+                "predictor": {
+                    "hidden_dim": 1024,
+                    "hidden_layers": 1,
+                },
                 "L_dim": 256,
                 "z_dim": 50,
                 "norm_z": True,
@@ -77,7 +84,7 @@ def sweep_walker():
         "env.domain": ["walker"],
         "agent": {
             "model": {"archi": {"z_dim": [50]}},
-            "train": {"lr_b": [1e-4, 1e-5], "ortho_coef": [0.1, 1, 10]},
+            "train": {"lr_b": [1e-4, 1e-5], "ortho_coef": [0.001, 0.01, 0.1]},
         },
     }
     return conf
@@ -89,7 +96,7 @@ def sweep_cheetah():
         "env.domain": ["cheetah"],
         "agent": {
             "model": {"archi": {"z_dim": [50]}},
-            "train": {"lr_b": [1e-4, 1e-5], "ortho_coef": [0.1, 1, 10]},
+            "train": {"lr_b": [1e-4, 1e-5], "ortho_coef": [0.001, 0.01, 0.1]},
         },
     }
     return conf
@@ -101,7 +108,7 @@ def sweep_quadruped():
         "env.domain": ["quadruped"],
         "agent": {
             "model": {"archi": {"z_dim": [50]}},
-            "train": {"lr_b": [1e-4, 1e-5], "ortho_coef": [0.1, 1, 10]},
+            "train": {"lr_b": [1e-4, 1e-5], "ortho_coef": [0.001, 0.01, 0.1]},
         },
     }
     return conf
@@ -114,7 +121,7 @@ def sweep_pointmass():
         "env.task": ["reach_top_left"],
         "agent": {
             "model": {"archi": {"z_dim": [50]}},
-            "train": {"lr_b": [1e-4, 1e-5], "ortho_coef": [0.1, 1, 10], "discount": [0.99], "lr_actor": [1e-6]},
+            "train": {"lr_b": [1e-4, 1e-5], "ortho_coef": [0.001, 0.01, 0.1], "discount": [0.99], "lr_actor": [1e-6]},
         },
     }
     return conf
@@ -201,7 +208,7 @@ def main(args: LaunchArgs):
 if __name__ == "__main__":
     args = tyro.cli(LaunchArgs)
     main(args)
-    # uv run -m scripts.baselines.replearn.launch_fb_dmc --use_wandb --wandb_gname fb_walker_proprio --data_path datasets --workdir_root results --sweep_config sweep_walker
-    # uv run -m scripts.baselines.replearn.launch_fb_dmc --use_wandb --wandb_gname fb_cheetah_proprio --data_path datasets --workdir_root results --sweep_config sweep_cheetah
-    # uv run -m scripts.baselines.replearn.launch_fb_dmc --use_wandb --wandb_gname fb_quadruped_proprio --data_path datasets --workdir_root results --sweep_config sweep_quadruped
-    # uv run -m scripts.baselines.replearn.launch_fb_dmc --use_wandb --wandb_gname fb_pointmass_proprio --data_path datasets --workdir_root results --sweep_config sweep_pointmass
+    # uv run -m scripts.train.proprio.launch_rldp_dmc --use_wandb --wandb_gname rldp_walker_proprio --data_path datasets --workdir_root results --sweep_config sweep_walker
+    # uv run -m scripts.train.proprio.launch_rldp_dmc --use_wandb --wandb_gname rldp_cheetah_proprio --data_path datasets --workdir_root results --sweep_config sweep_cheetah
+    # uv run -m scripts.train.proprio.launch_rldp_dmc --use_wandb --wandb_gname rldp_quadruped_proprio --data_path datasets --workdir_root results --sweep_config sweep_quadruped
+    # uv run -m scripts.train.proprio.launch_rldp_dmc --use_wandb --wandb_gname rldp_pointmass_proprio --data_path datasets --workdir_root results --sweep_config sweep_pointmass

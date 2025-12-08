@@ -282,17 +282,17 @@ def main(args: LaunchArgs):
 if __name__ == "__main__":
     args = tyro.cli(LaunchArgs)
     main(args)
-    # uv run -m scripts.baselines.pixel.launch_sf_ogbench --use_wandb --wandb_gname byol_antmaze_pixel --data_path datasets --workdir_root results --sweep_config sweep_byol_antmaze --sf_agent byol
-    # uv run -m scripts.baselines.pixel.launch_sf_ogbench --use_wandb --wandb_gname byol_cube_pixel --data_path datasets --workdir_root results --sweep_config sweep_byol_cube --sf_agent byol
+    # uv run -m scripts.train.pixel.launch_sf_ogbench --use_wandb --wandb_gname byol_antmaze_pixel --data_path datasets --workdir_root results --sweep_config sweep_byol_antmaze --sf_agent byol
+    # uv run -m scripts.train.pixel.launch_sf_ogbench --use_wandb --wandb_gname byol_cube_pixel --data_path datasets --workdir_root results --sweep_config sweep_byol_cube --sf_agent byol
 
-    # uv run -m scripts.baselines.pixel.launch_sf_ogbench --use_wandb --wandb_gname byol_gamma_antmaze_pixel --data_path datasets --workdir_root results --sweep_config sweep_byol_antmaze --sf_agent byol-gamma
-    # uv run -m scripts.baselines.pixel.launch_sf_ogbench --use_wandb --wandb_gname byol_gamma_cube_pixel --data_path datasets --workdir_root results --sweep_config sweep_byol_cube --sf_agent byol-gamma
+    # uv run -m scripts.train.pixel.launch_sf_ogbench --use_wandb --wandb_gname byol_gamma_antmaze_pixel --data_path datasets --workdir_root results --sweep_config sweep_byol_antmaze --sf_agent byol-gamma
+    # uv run -m scripts.train.pixel.launch_sf_ogbench --use_wandb --wandb_gname byol_gamma_cube_pixel --data_path datasets --workdir_root results --sweep_config sweep_byol_cube --sf_agent byol-gamma
 
-    # uv run -m scripts.baselines.pixel.launch_sf_ogbench --use_wandb --wandb_gname hilp_antmaze_pixel --data_path datasets --workdir_root results --sweep_config sweep_hilp_antmaze --sf_agent hilp
-    # uv run -m scripts.baselines.pixel.launch_sf_ogbench --use_wandb --wandb_gname hilp_cube_pixel --data_path datasets --workdir_root results --sweep_config sweep_hilp_cube --sf_agent hilp
+    # uv run -m scripts.train.pixel.launch_sf_ogbench --use_wandb --wandb_gname hilp_antmaze_pixel --data_path datasets --workdir_root results --sweep_config sweep_hilp_antmaze --sf_agent hilp
+    # uv run -m scripts.train.pixel.launch_sf_ogbench --use_wandb --wandb_gname hilp_cube_pixel --data_path datasets --workdir_root results --sweep_config sweep_hilp_cube --sf_agent hilp
 
-    # uv run -m scripts.baselines.pixel.launch_sf_ogbench --use_wandb --wandb_gname laplacian_antmaze_pixel --data_path datasets --workdir_root results --sweep_config sweep_laplacian_antmaze --sf_agent laplacian
-    # uv run -m scripts.baselines.pixel.launch_sf_ogbench --use_wandb --wandb_gname laplacian_cube_pixel --data_path datasets --workdir_root results --sweep_config sweep_laplacian_cube --sf_agent laplacian
+    # uv run -m scripts.train.pixel.launch_sf_ogbench --use_wandb --wandb_gname laplacian_antmaze_pixel --data_path datasets --workdir_root results --sweep_config sweep_laplacian_antmaze --sf_agent laplacian
+    # uv run -m scripts.train.pixel.launch_sf_ogbench --use_wandb --wandb_gname laplacian_cube_pixel --data_path datasets --workdir_root results --sweep_config sweep_laplacian_cube --sf_agent laplacian
 
-    # uv run -m scripts.baselines.pixel.launch_sf_ogbench --use_wandb --wandb_gname icvf_antmaze_pixel --data_path datasets --workdir_root results --sweep_config sweep_hilp_antmaze --sf_agent icvf
-    # uv run -m scripts.baselines.pixel.launch_sf_ogbench --use_wandb --wandb_gname icvf_cube_pixel --data_path datasets --workdir_root results --sweep_config sweep_hilp_cube --sf_agent icvf
+    # uv run -m scripts.train.pixel.launch_sf_ogbench --use_wandb --wandb_gname icvf_antmaze_pixel --data_path datasets --workdir_root results --sweep_config sweep_hilp_antmaze --sf_agent icvf
+    # uv run -m scripts.train.pixel.launch_sf_ogbench --use_wandb --wandb_gname icvf_cube_pixel --data_path datasets --workdir_root results --sweep_config sweep_hilp_cube --sf_agent icvf
