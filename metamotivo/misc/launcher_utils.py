@@ -86,14 +86,13 @@ def launch_with_sbatch(
     import stat
     from subprocess import PIPE, TimeoutExpired, run
 
+    # TODO: edit these requirements as needed
     JOB_PREFIX = """#!/bin/bash
 #SBATCH --time=1440
-#SBATCH --mem-per-cpu=6000
+#SBATCH --mem-per-cpu=5000
 #SBATCH --job-name=td_jepa
-#SBATCH --cpus-per-task=8
-#SBATCH --gpus=rtx_4090:1
-#SBATCH --gres=gpumem:12g
-#SBATCH --tmp=20GB"""
+#SBATCH --cpus-per-task=16
+#SBATCH --gpus=1"""
 
     try:
         os.mkdir(base_config["work_dir"])
@@ -126,7 +125,7 @@ def launch_with_sbatch(
             f.write(config.model_dump_json())
         job_script = JOB_PREFIX + "\n" + f"#SBATCH --output={trial['work_dir'] + '/job.sh.out'}\n"
         job_script += f"#SBATCH --error={trial['work_dir'] + '/job.sh.err'}\n"
-        # nothing to see here, move along...
+        # TODO: this is a didactic example, there are better ways to launch your jobs
         job_script += f"python -c \"from metamotivo.misc.launcher_utils import slurm_entry_point; slurm_entry_point('{json_path}')\""
         with open(trial["work_dir"] + "/job.sh", "w") as file:
             file.write(job_script)
@@ -158,16 +157,14 @@ def launch_with_exca(
     from exca.confdict import ConfDict
 
     _PATHS_TO_COPY = ["metamotivo", "scripts", "entry_points", "uv.lock", "pyproject.toml"]
+    # TODO: edit these requirements as needed
     CLUSTER_CONFIG = {
-        "timeout_min": 24 * 60,  # 24 hours timeout
-        # TODO gres is not in exca. Should it go through "slurm_additional_parameters"?
-        # "slurm_gres": "gpu:YOUR_GPU_TYPE:1",
+        "timeout_min": 24 * 60,
         "gpus_per_node": 1,
         "slurm_constraint": "",
         "slurm_partition": "",
-        # TODO [RELEASE] double check requirements when training from pixels and adjust comments
-        "cpus_per_task": 16,  # we suggest at least 16 cpus when training from pixels
-        "mem_gb": 80,  # we suggest at least 80gb when training from pixels
+        "cpus_per_task": 16,  # we recommend at least 16 cores when training from pixels
+        "mem_gb": 80,  # we recommend at least 80GB of memory when training from pixels
         "cluster": "slurm",
     }
 
@@ -185,20 +182,20 @@ def launch_with_exca(
     exca_infra_args["folder"] = str(workdir_root / "_exca")
     # tell exca which paths to copy
     exca_infra_args["workdir"] = {"copied": _PATHS_TO_COPY, "includes": tuple()}
-    # By default force new runs and do not use cache
+    # by default, force new runs and do not use cache
     exca_infra_args["mode"] = "force"
     base_config["infra"] = exca_infra_args
 
     base_config = InfraTrainConfig(**base_config)
     print("Using current Python environment for experiments.")
 
-    # Instantiate the base config as a config_cls object, and now launch the runs
+    # instantiate the base config as a config_cls object, and now launch the runs
     with base_config.infra.job_array(max_workers=1000, allow_empty=True) as array:
         for trial in trials:
-            # ConfDict == nested dicts with convenience features (recursive update, flattening to "."-separated list)
+            # ConfDict implements nested dicts with convenience features (recursive update, flattening to "."-separated list)
             trial = ConfDict(trial)
-            # Note: use of clone_obj important for exca tracking (how many configs are created etc)
-            # This will create clone of base_config, with "trial" ConfDict applied on top
+            # NOTE: use of clone_obj important for exca tracking (how many configs are created etc)
+            # this will create clone of base_config, with "trial" ConfDict applied on top
             new_config = base_config.infra.clone_obj(trial)
             array.append(new_config)
 
