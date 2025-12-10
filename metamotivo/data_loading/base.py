@@ -121,6 +121,7 @@ class BaseDataConfig(BaseConfig):
     buffer_type: tp.Literal["dict", "parallel"] = "dict"
     future: float = 0.99
     num_workers: int = 8  # for parallel buffer
+    horizon: int = 1  # for RLDP only
 
     def build(self, buffer_device, batch_size, frame_stack, relabel_fn=None) -> tp.Dict:
         raise NotImplementedError
@@ -161,9 +162,9 @@ class BaseDataConfig(BaseConfig):
                         frame_stack=frame_stack,
                         obs_type=self.obs_type,
                         relabel_fn=relabel_fn,
-                        device=buffer_device,
                         future=self.future,
                         num_workers=self.num_workers,
+                        horizon=self.horizon,
                     )
                 }
             case _:

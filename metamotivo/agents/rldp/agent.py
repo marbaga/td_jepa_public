@@ -93,7 +93,6 @@ class RLDPAgent(FBAgent):
         obs, obs_bw, next_obs, goal, future_obs = self.enc(obs, next_obs, future_obs)
 
         z = self.sample_mixed_z(train_goal=goal).clone()
-        self.z_buffer.add(z)
 
         q_loss_coef = self.cfg.train.q_loss_coef if self.cfg.train.q_loss_coef > 0 else None
         clip_grad_norm = self.cfg.train.clip_grad_norm if self.cfg.train.clip_grad_norm > 0 else None
