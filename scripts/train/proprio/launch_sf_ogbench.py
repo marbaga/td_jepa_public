@@ -118,7 +118,7 @@ BASE_AGENT_CFG = {
 }
 
 
-def byol_sweep_antmaze():
+def sweep_byol_antmaze():
     conf = {
         "seed": [3917, 3502, 8948, 9460, 4729, 2226, 1744, 7742, 4501, 6341],
         "env.domain": [
@@ -135,7 +135,7 @@ def byol_sweep_antmaze():
     return conf
 
 
-def hilp_sweep_antmaze():
+def sweep_hilp_antmaze():
     conf = {
         "seed": [3917, 3502, 8948, 9460, 4729, 2226, 1744, 7742, 4501, 6341],
         "env.domain": [
@@ -152,7 +152,7 @@ def hilp_sweep_antmaze():
     return conf
 
 
-def laplacian_sweep_antmaze():
+def sweep_laplacian_antmaze():
     conf = {
         "seed": [3917, 3502, 8948, 9460, 4729, 2226, 1744, 7742, 4501, 6341],
         "env.domain": [
@@ -169,7 +169,7 @@ def laplacian_sweep_antmaze():
     return conf
 
 
-def byol_sweep_cube():
+def sweep_byol_cube():
     conf = {
         "seed": [3917, 3502, 8948, 9460, 4729, 2226, 1744, 7742, 4501, 6341],
         "env.domain": [
@@ -185,7 +185,7 @@ def byol_sweep_cube():
     return conf
 
 
-def hilp_sweep_cube():
+def sweep_hilp_cube():
     conf = {
         "seed": [3917, 3502, 8948, 9460, 4729, 2226, 1744, 7742, 4501, 6341],
         "env.domain": [
@@ -201,7 +201,7 @@ def hilp_sweep_cube():
     return conf
 
 
-def laplacian_sweep_cube():
+def sweep_laplacian_cube():
     conf = {
         "seed": [3917, 3502, 8948, 9460, 4729, 2226, 1744, 7742, 4501, 6341],
         "env.domain": [

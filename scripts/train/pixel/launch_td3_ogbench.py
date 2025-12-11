@@ -253,11 +253,11 @@ def main(args: LaunchArgs):
                             "env": {
                                 "name": "ogbench",
                                 "domain": trial["env.domain"],
-                                "task": ALL_TASKS[trial["env.domain"]][0],
+                                "task": trial["env.task"],
                                 "obs_type": "pixels",
                                 "frame_stack": base_cfg["env"]["frame_stack"],
                             },
-                            "tasks": ALL_TASKS[trial["env.domain"]],
+                            "tasks": [trial["env.task"]],
                             "num_episodes": 10,
                             "num_inference_samples": 10_000,
                         },

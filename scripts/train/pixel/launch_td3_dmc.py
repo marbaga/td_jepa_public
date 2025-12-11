@@ -133,11 +133,11 @@ def main(args: LaunchArgs):
                             "env": {
                                 "name": "dmc",
                                 "domain": trial["env.domain"],
-                                "task": trial["env"]["task"],
+                                "task": trial["env.task"],
                                 "obs_type": "pixels",
                                 "frame_stack": base_cfg["env"]["frame_stack"],
                             },
-                            "tasks": [trial["env"]["task"]],
+                            "tasks": [trial["env.task"]],
                             "num_episodes": 10,
                             "num_inference_samples": 10_000,
                         },
