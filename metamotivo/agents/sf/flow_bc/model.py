@@ -9,9 +9,9 @@ import gymnasium
 import numpy as np
 import torch
 
-from ..fb_flowbc.nn_models import NoiseConditionedActorArchiConfig
-from ..sf.model import SFModel, SFModelArchiConfig, SFModelConfig
-from ..td3_flowbc.nn_models import SimpleVectorFieldArchiConfig
+from ....nn_models import NoiseConditionedActorArchiConfig
+from ...td3.nn_models import SimpleVectorFieldArchiConfig
+from ..model import SFModel, SFModelArchiConfig, SFModelConfig
 
 
 class SFFlowBCModelArchiConfig(SFModelArchiConfig):

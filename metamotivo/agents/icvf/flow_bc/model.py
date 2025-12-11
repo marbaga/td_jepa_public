@@ -5,8 +5,8 @@
 
 import typing as tp
 
-from ..icvf.model import ICVFModel, ICVFModelArchiConfig, ICVFModelConfig
-from ..sf_flowbc.model import SFFlowBCModelArchiConfig, SFFlowBCModelConfig, SFFlowBCModelMixin
+from ...sf.flow_bc.model import SFFlowBCModelArchiConfig, SFFlowBCModelConfig, SFFlowBCModelMixin
+from ..model import ICVFModel, ICVFModelArchiConfig, ICVFModelConfig
 
 
 class ICVFFlowBCModelArchiConfig(SFFlowBCModelArchiConfig, ICVFModelArchiConfig):

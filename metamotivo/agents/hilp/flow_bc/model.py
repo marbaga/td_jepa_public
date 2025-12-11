@@ -5,8 +5,8 @@
 
 import typing as tp
 
-from ..hilp.model import HilpModel, HilpModelConfig
-from ..sf_flowbc.model import SFFlowBCModelArchiConfig, SFFlowBCModelConfig, SFFlowBCModelMixin
+from ...sf.flow_bc.model import SFFlowBCModelArchiConfig, SFFlowBCModelConfig, SFFlowBCModelMixin
+from ..model import HilpModel, HilpModelConfig
 
 
 class HilpFlowBCModelConfig(SFFlowBCModelConfig, HilpModelConfig):

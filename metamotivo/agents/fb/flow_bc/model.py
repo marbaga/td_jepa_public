@@ -11,33 +11,33 @@ import pydantic
 import torch
 from torch.amp import autocast
 
-from ...base_model import load_model
-from ..fb_flowbc.nn_models import NoiseConditionedActorArchiConfig
-from ..rldp.model import RLDPModel, RLDPModelArchiConfig, RLDPModelConfig
-from ..td3_flowbc.nn_models import SimpleVectorFieldArchiConfig
+from ....base_model import load_model
+from ....nn_models import NoiseConditionedActorArchiConfig
+from ...td3.nn_models import SimpleVectorFieldArchiConfig
+from ..model import FBModel, FBModelArchiConfig, FBModelConfig
 
 
-class RLDPFlowBCModelArchiConfig(RLDPModelArchiConfig):
+class FBFlowBCModelArchiConfig(FBModelArchiConfig):
     # noise conditioned actor
     actor: NoiseConditionedActorArchiConfig = pydantic.Field(NoiseConditionedActorArchiConfig(), discriminator="name")
     # vector field
     actor_vf: SimpleVectorFieldArchiConfig = SimpleVectorFieldArchiConfig()
 
 
-class RLDPFlowBCModelConfig(RLDPModelConfig):
-    name: tp.Literal["RLDPFlowBCModel"] = "RLDPFlowBCModel"
-    archi: RLDPFlowBCModelArchiConfig = RLDPFlowBCModelArchiConfig()
+class FBFlowBCModelConfig(FBModelConfig):
+    name: tp.Literal["FBFlowBCModel"] = "FBFlowBCModel"
+    archi: FBFlowBCModelArchiConfig = FBFlowBCModelArchiConfig()
 
     @property
     def object_class(self):
-        return RLDPFlowBCModel
+        return FBFlowBCModel
 
 
-class RLDPFlowBCModel(RLDPModel):
-    def __init__(self, obs_space, action_dim, cfg: RLDPFlowBCModelConfig):
+class FBFlowBCModel(FBModel):
+    def __init__(self, obs_space, action_dim, cfg: FBFlowBCModelConfig):
         super().__init__(obs_space, action_dim, cfg)
         # For IDEs
-        self.cfg: RLDPFlowBCModelConfig = cfg
+        self.cfg: FBFlowBCModelConfig = cfg
 
         obs_space = (
             gymnasium.spaces.Box(low=-np.inf, high=np.inf, shape=(self.cfg.archi.L_dim,), dtype=np.float32)
@@ -67,5 +67,5 @@ class RLDPFlowBCModel(RLDPModel):
     @classmethod
     def load(
         cls, path: str, device: str | None = None, strict: bool = True, build_kwargs: dict[str, tp.Any] | None = None
-    ) -> "RLDPFlowBCModel":
-        return load_model(path, device, strict=strict, config_class=RLDPFlowBCModelConfig, build_kwargs=build_kwargs)
+    ) -> "FBFlowBCModel":
+        return load_model(path, device, strict=strict, config_class=FBFlowBCModelConfig, build_kwargs=build_kwargs)

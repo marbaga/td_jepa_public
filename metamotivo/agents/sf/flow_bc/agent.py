@@ -7,7 +7,7 @@ from typing import Dict, Literal
 
 import torch
 
-from ..sf.agent import SFAgent, SFAgentConfig, SFAgentTrainConfig
+from ..agent import SFAgent, SFAgentConfig, SFAgentTrainConfig
 from .model import SFFlowBCModelConfig
 
 

@@ -7,9 +7,9 @@ import typing as tp
 
 import torch
 
-from ...base_model import load_model
-from ..td3.model import TD3Model, TD3ModelArchiConfig, TD3ModelConfig
-from .nn_models import NoiseConditionedActorArchiConfig, SimpleVectorFieldArchiConfig
+from ....base_model import load_model
+from ..model import TD3Model, TD3ModelArchiConfig, TD3ModelConfig
+from ..nn_models import NoiseConditionedActorArchiConfig, SimpleVectorFieldArchiConfig
 
 
 class TD3FlowBCModelArchiConfig(TD3ModelArchiConfig):

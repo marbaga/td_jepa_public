@@ -7,10 +7,10 @@ import typing as tp
 
 import torch
 
-from ...base_model import load_model
-from ..fb_flowbc.nn_models import NoiseConditionedActorArchiConfig
-from ..td3_flowbc.nn_models import SimpleVectorFieldArchiConfig
-from ..td_jepa.model import TDJEPAModel, TDJEPAModelArchiConfig, TDJEPAModelConfig
+from ....base_model import load_model
+from ....nn_models import NoiseConditionedActorArchiConfig
+from ...td3.nn_models import SimpleVectorFieldArchiConfig
+from ..model import TDJEPAModel, TDJEPAModelArchiConfig, TDJEPAModelConfig
 
 
 class TDJEPAFlowBCModelArchiConfig(TDJEPAModelArchiConfig):

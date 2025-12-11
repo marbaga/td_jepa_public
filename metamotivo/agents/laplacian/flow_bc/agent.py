@@ -5,9 +5,9 @@
 
 import typing as tp
 
-from ..laplacian.agent import LaplacianAgent, LaplacianAgentConfig, LaplacianAgentTrainConfig
-from ..sf_flowbc.agent import SFFlowBCAgentConfig, SFFlowBCAgentMixin, SFFlowBCAgentTrainConfig
-from ..sf_flowbc.model import SFFlowBCModelConfig
+from ...sf.flow_bc.agent import SFFlowBCAgentConfig, SFFlowBCAgentMixin, SFFlowBCAgentTrainConfig
+from ...sf.flow_bc.model import SFFlowBCModelConfig
+from ..agent import LaplacianAgent, LaplacianAgentConfig, LaplacianAgentTrainConfig
 
 
 class LaplacianFlowBCAgentTrainConfig(SFFlowBCAgentTrainConfig, LaplacianAgentTrainConfig):

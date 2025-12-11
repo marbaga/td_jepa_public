@@ -5,8 +5,8 @@
 
 import typing as tp
 
-from ..icvf.agent import ICVFAgent, ICVFAgentConfig, ICVFAgentTrainConfig
-from ..sf_flowbc.agent import SFFlowBCAgentConfig, SFFlowBCAgentMixin, SFFlowBCAgentTrainConfig
+from ...sf.flow_bc.agent import SFFlowBCAgentConfig, SFFlowBCAgentMixin, SFFlowBCAgentTrainConfig
+from ..agent import ICVFAgent, ICVFAgentConfig, ICVFAgentTrainConfig
 from .model import ICVFFlowBCModelConfig
 
 

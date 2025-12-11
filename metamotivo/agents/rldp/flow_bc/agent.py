@@ -8,27 +8,27 @@ from typing import Dict, Literal
 import torch
 from torch.amp import autocast
 
-from ..fb.agent import FBAgent, FBAgentConfig, FBAgentTrainConfig
-from .model import FBFlowBCModelConfig
+from ..agent import RLDPAgent, RLDPAgentConfig, RLDPAgentTrainConfig
+from .model import RLDPFlowBCModelConfig
 
 
-class FBFlowBCAgentTrainConfig(FBAgentTrainConfig):
+class RLDPFlowBCAgentTrainConfig(RLDPAgentTrainConfig):
     flow_steps: int = 10
     lr_actor_vf: float = 3e-4
 
 
-class FBFlowBCAgentConfig(FBAgentConfig):
-    name: Literal["FBFlowBCAgent"] = "FBFlowBCAgent"
-    model: FBFlowBCModelConfig
-    train: FBFlowBCAgentTrainConfig
+class RLDPFlowBCAgentConfig(RLDPAgentConfig):
+    name: Literal["RLDPFlowBCAgent"] = "RLDPFlowBCAgent"
+    model: RLDPFlowBCModelConfig
+    train: RLDPFlowBCAgentTrainConfig
 
     @property
     def object_class(self):
-        return FBFlowBCAgent
+        return RLDPFlowBCAgent
 
 
-class FBFlowBCAgent(FBAgent):
-    config_class = FBFlowBCAgentConfig
+class RLDPFlowBCAgent(RLDPAgent):
+    config_class = RLDPFlowBCAgentConfig
 
     @property
     def optimizer_dict(self):

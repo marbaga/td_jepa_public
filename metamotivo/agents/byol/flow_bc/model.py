@@ -5,8 +5,8 @@
 
 import typing as tp
 
-from ..byol.model import BYOLModel, BYOLModelArchiConfig, BYOLModelConfig
-from ..sf_flowbc.model import SFFlowBCModelArchiConfig, SFFlowBCModelConfig, SFFlowBCModelMixin
+from ...sf.flow_bc.model import SFFlowBCModelArchiConfig, SFFlowBCModelConfig, SFFlowBCModelMixin
+from ..model import BYOLModel, BYOLModelArchiConfig, BYOLModelConfig
 
 
 class BYOLFlowBCModelArchiConfig(SFFlowBCModelArchiConfig, BYOLModelArchiConfig):

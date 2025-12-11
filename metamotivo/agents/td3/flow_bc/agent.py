@@ -7,27 +7,27 @@ from typing import Dict, Literal
 
 import torch
 
-from ..td_jepa.agent import TDJEPAAgent, TDJEPAAgentConfig, TDJEPAAgentTrainConfig
-from .model import TDJEPAFlowBCModelConfig
+from ..agent import TD3Agent, TD3AgentConfig, TD3AgentTrainConfig
+from .model import TD3FlowBCModelConfig
 
 
-class TDJEPAFlowBCAgentTrainConfig(TDJEPAAgentTrainConfig):
+class TD3FlowBCAgentTrainConfig(TD3AgentTrainConfig):
     flow_steps: int = 10
     lr_actor_vf: float = 3e-4
 
 
-class TDJEPAFlowBCAgentConfig(TDJEPAAgentConfig):
-    name: Literal["TDJEPAFlowBCAgent"] = "TDJEPAFlowBCAgent"
-    model: TDJEPAFlowBCModelConfig
-    train: TDJEPAFlowBCAgentTrainConfig
+class TD3FlowBCAgentConfig(TD3AgentConfig):
+    name: Literal["TD3FlowBCAgent"] = "TD3FlowBCAgent"
+    model: TD3FlowBCModelConfig
+    train: TD3FlowBCAgentTrainConfig
 
     @property
     def object_class(self):
-        return TDJEPAFlowBCAgent
+        return TD3FlowBCAgent
 
 
-class TDJEPAFlowBCAgent(TDJEPAAgent):
-    config_class = TDJEPAFlowBCAgentConfig
+class TD3FlowBCAgent(TD3Agent):
+    config_class = TD3FlowBCAgentConfig
 
     @property
     def optimizer_dict(self):
@@ -40,24 +40,19 @@ class TDJEPAFlowBCAgent(TDJEPAAgent):
         self.actor_vf_optimizer = torch.optim.Adam(
             self._model._actor_vf.parameters(),
             lr=self.cfg.train.lr_actor_vf,
-            capturable=False,
-            weight_decay=self.cfg.train.weight_decay,
+            capturable=self.cfg.cudagraphs and not self.cfg.compile,
         )
 
-    def sample_action_from_latent(self, latent: torch.Tensor, z: torch.Tensor, mean: bool = False) -> torch.Tensor:
-        noises = torch.randn((z.shape[0], self.action_dim), device=z.device, dtype=z.dtype)
-        action = self._model._actor(latent, z, noises)
+    def sample_action_from_norm_obs(self, obs: torch.Tensor) -> torch.Tensor:
+        noises = torch.randn((obs.shape[0], self.action_dim), device=self.device, dtype=torch.float32)
+        action = self._model._actor(obs, noises)
         return action
 
     def update_actor(
         self,
-        phi_obs: torch.Tensor,
+        obs: torch.Tensor,
         action: torch.Tensor,
-        z: torch.Tensor,
     ) -> Dict[str, torch.Tensor]:
-        with torch.no_grad():
-            phi_enc = self._model._phi_mlp_encoder(phi_obs)
-
         x_1 = action
         x_0 = torch.randn_like(x_1, device=action.device, dtype=action.dtype)
         t = torch.rand((x_1.shape[0], 1), device=action.device)
@@ -65,24 +60,21 @@ class TDJEPAFlowBCAgent(TDJEPAAgent):
         vel = x_1 - x_0
 
         # flow matching l2 loss
-        flow_in = phi_enc if self.cfg.model.actor_use_full_encoder else phi_obs
-        pred = self._model._actor_vf(flow_in, x_t, t)
+        pred = self._model._actor_vf(obs, x_t, t)
         bc_flow_loss = torch.pow(pred - vel, 2).mean()
 
-        # Q loss.
+        # Q loss
         noises = torch.randn_like(x_1, device=action.device, dtype=action.dtype)
-        actor_in = phi_enc if self.cfg.model.actor_use_full_encoder else phi_obs
-        actor_actions = self._model._actor(actor_in, z, noises)
-        preds = self._model._phi_predictor(phi_enc.detach(), z, actor_actions)  # num_parallel x batch x z_dim
-        Qs = (preds * z).sum(-1)  # num_parallel x batch
-        _, _, Q = self.get_targets_uncertainty(Qs, self.cfg.train.actor_pessimism_penalty)  # batch
+        actor_actions = self._model._actor(obs, noises)
+        Qs = self._model._critic(obs, actor_actions)  # num_parallel x batch
+        _, _, Q = self.get_targets_uncertainty(Qs, self.cfg.train.pessimism_penalty)  # batch
         actor_loss = -Q.mean()
 
         # compute bc loss
         bc_loss = torch.tensor([0.0], device=action.device)
         if self.cfg.train.bc_coeff > 0:
             with torch.no_grad():
-                target_flow_actions = self.compute_flow_actions(flow_in, noises)
+                target_flow_actions = self.compute_flow_actions(obs, noises)
             bc_error = torch.pow(actor_actions - target_flow_actions, 2).mean()
             bc_loss = self.cfg.train.bc_coeff * bc_error
             actor_loss = (actor_loss / Qs.abs().mean().detach()) + bc_loss
@@ -103,11 +95,11 @@ class TDJEPAFlowBCAgent(TDJEPAAgent):
         }
         return metrics
 
-    def compute_flow_actions(self, flow_in: torch.Tensor, noises: torch.Tensor) -> torch.Tensor:
+    def compute_flow_actions(self, obs: torch.Tensor, noises: torch.Tensor) -> torch.Tensor:
         actions = noises
         for i in range(self.cfg.train.flow_steps):
             t = torch.ones((noises.shape[0], 1), device=noises.device) * i / self.cfg.train.flow_steps
-            vels = self._model._actor_vf(flow_in, actions, t)
+            vels = self._model._actor_vf(obs, actions, t)
             actions = actions + vels / self.cfg.train.flow_steps
         actions = torch.clamp(actions, min=-1, max=1)
         return actions
