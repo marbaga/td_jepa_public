@@ -156,7 +156,7 @@ def launch_with_exca(
     import exca as xk
     from exca.confdict import ConfDict
 
-    _PATHS_TO_COPY = ["metamotivo", "scripts", "entry_points", "uv.lock", "pyproject.toml"]
+    _PATHS_TO_COPY = ["metamotivo", "scripts", "uv.lock", "pyproject.toml", "train.py"] 
     # TODO: edit these requirements as needed
     CLUSTER_CONFIG = {
         "timeout_min": 24 * 60,
